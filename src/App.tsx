@@ -24,6 +24,7 @@ interface Trade {
   entry_price: number;
   exit_price: number;
   stop_loss: number;
+  take_profit: number;
   quantity: number;
   quantity_type: 'SHARES' | 'LOTS';
   commission: number;
@@ -69,6 +70,7 @@ export default function App() {
     entry_price: '',
     exit_price: '',
     stop_loss: '',
+    take_profit: '',
     quantity: '',
     quantity_type: 'SHARES',
     commission: '',
@@ -125,6 +127,7 @@ export default function App() {
         entry_price: trade.entry_price.toString(),
         exit_price: trade.exit_price.toString(),
         stop_loss: trade.stop_loss ? trade.stop_loss.toString() : '',
+        take_profit: trade.take_profit ? trade.take_profit.toString() : '',
         quantity: trade.quantity.toString(),
         quantity_type: trade.quantity_type || 'SHARES',
         commission: trade.commission ? trade.commission.toString() : '',
@@ -142,6 +145,7 @@ export default function App() {
         entry_price: '',
         exit_price: '',
         stop_loss: '',
+        take_profit: '',
         quantity: '',
         quantity_type: 'SHARES',
         commission: '',
@@ -162,6 +166,7 @@ export default function App() {
         entry_price: parseFloat(formData.entry_price),
         exit_price: parseFloat(formData.exit_price),
         stop_loss: parseFloat(formData.stop_loss) || 0,
+        take_profit: parseFloat(formData.take_profit) || 0,
         quantity: parseInt(formData.quantity),
         commission: parseFloat(formData.commission) || 0,
         tags: typeof formData.tags === 'string' ? formData.tags.split(',').map(t => t.trim()).filter(t => t) : formData.tags
@@ -211,6 +216,15 @@ export default function App() {
     if (risk === 0) return 0;
     const multiplier = trade.side === 'LONG' ? 1 : -1;
     return ((trade.exit_price - trade.entry_price) * multiplier) / risk;
+  };
+
+  // Helper to calculate Planned RR Ratio
+  const calculatePlannedRR = (trade: Trade) => {
+    if (!trade.stop_loss || trade.stop_loss === 0 || !trade.take_profit || trade.take_profit === 0) return 0;
+    const risk = Math.abs(trade.entry_price - trade.stop_loss);
+    const reward = Math.abs(trade.take_profit - trade.entry_price);
+    if (risk === 0) return 0;
+    return reward / risk;
   };
 
   // Filtered Trades
@@ -367,7 +381,7 @@ export default function App() {
                       <Activity className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{stats.winRate.toFixed(1)}%</div>
+                      <div className="text-2xl font-bold">{stats.winRate.toFixed(2)}%</div>
                       <p className="text-xs text-muted-foreground">
                         {stats.totalTrades} total trades
                       </p>
@@ -392,7 +406,7 @@ export default function App() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">
-                        ${stats.avgWin.toFixed(0)} / <span className="text-red-500">${stats.avgLoss.toFixed(0)}</span>
+                        ${stats.avgWin.toFixed(2)} / <span className="text-red-500">${stats.avgLoss.toFixed(2)}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Expectancy ratio
@@ -404,12 +418,12 @@ export default function App() {
                 {/* Charts Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   {/* Equity Curve */}
-                  <Card className="col-span-1 lg:col-span-2">
+                  <Card className="col-span-1 lg:col-span-2 flex flex-col">
                     <CardHeader>
                       <CardTitle>Equity Curve</CardTitle>
                     </CardHeader>
-                    <CardContent className="pl-2">
-                      <div className="h-[350px] w-full">
+                    <CardContent className="pl-2 flex-1 flex flex-col">
+                      <div className="flex-1 w-full min-h-[350px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={stats.equityCurve}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
@@ -426,9 +440,10 @@ export default function App() {
                               fontSize={12} 
                               tickLine={false} 
                               axisLine={false} 
-                              tickFormatter={(value) => `$${value}`} 
+                              tickFormatter={(value) => `$${value.toFixed(2)}`} 
                             />
                             <RechartsTooltip 
+                              formatter={(value: number) => `$${value.toFixed(2)}`}
                               contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
                               itemStyle={{ color: 'hsl(var(--foreground))' }}
                             />
@@ -446,12 +461,12 @@ export default function App() {
                   </Card>
 
                   {/* Calendar Heatmap */}
-                  <Card className="col-span-1 lg:col-span-2">
+                  <Card className="col-span-1 lg:col-span-2 flex flex-col">
                     <CardHeader>
                       <CardTitle>P&L Heatmap</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <div className="h-[350px] flex items-center justify-center">
+                    <CardContent className="flex-1 flex flex-col">
+                      <div className="flex-1 w-full">
                         <CalendarHeatmap data={stats.dailyPnL} />
                       </div>
                     </CardContent>
@@ -535,6 +550,7 @@ export default function App() {
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Qty</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Entry</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Exit</th>
+                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">RR Ratio</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">R</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">P&L</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Tags</th>
@@ -553,6 +569,7 @@ export default function App() {
                           filteredTrades.map((trade) => {
                             const pnl = calculatePnL(trade);
                             const r = calculateR(trade);
+                            const plannedRR = calculatePlannedRR(trade);
                             return (
                               <tr key={trade.id} className="border-b transition-colors hover:bg-muted/50">
                                 <td className="p-4 align-middle">{format(new Date(trade.entry_date), 'MMM dd, yyyy')}</td>
@@ -565,10 +582,11 @@ export default function App() {
                                 </td>
                                 <td className="p-4 align-middle">{trade.setup}</td>
                                 <td className="p-4 align-middle text-right">
-                                  {trade.quantity} <span className="text-[10px] text-muted-foreground">{trade.quantity_type === 'LOTS' ? 'L' : 'S'}</span>
+                                  {trade.quantity}
                                 </td>
                                 <td className="p-4 align-middle text-right">${trade.entry_price.toFixed(2)}</td>
                                 <td className="p-4 align-middle text-right">${trade.exit_price.toFixed(2)}</td>
+                                <td className="p-4 align-middle text-right font-mono">{plannedRR > 0 ? `${plannedRR.toFixed(2)}:1` : '-'}</td>
                                 <td className="p-4 align-middle text-right font-mono">{r.toFixed(2)}R</td>
                                 <td className={`p-4 align-middle text-right font-bold ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                   ${pnl.toFixed(2)}
@@ -678,6 +696,7 @@ export default function App() {
                             <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" />
                             <YAxis stroke="hsl(var(--muted-foreground))" />
                             <RechartsTooltip 
+                              formatter={(value: number) => `$${value.toFixed(2)}`}
                               cursor={{fill: 'hsl(var(--muted)/0.2)'}}
                               contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
                               itemStyle={{ color: 'hsl(var(--foreground))' }}
@@ -705,6 +724,7 @@ export default function App() {
                             <XAxis type="number" stroke="hsl(var(--muted-foreground))" />
                             <YAxis dataKey="name" type="category" stroke="hsl(var(--muted-foreground))" width={100} />
                             <RechartsTooltip 
+                              formatter={(value: number) => `$${value.toFixed(2)}`}
                               cursor={{fill: 'hsl(var(--muted)/0.2)'}}
                               contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
                               itemStyle={{ color: 'hsl(var(--foreground))' }}
@@ -732,6 +752,7 @@ export default function App() {
                             <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
                             <YAxis stroke="hsl(var(--muted-foreground))" />
                             <RechartsTooltip 
+                              formatter={(value: number) => `${value.toFixed(2)}%`}
                               cursor={{fill: 'hsl(var(--muted)/0.2)'}}
                               contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
                               itemStyle={{ color: 'hsl(var(--foreground))' }}
@@ -814,19 +835,8 @@ export default function App() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <div className="flex gap-2">
-                      <Input id="quantity" name="quantity" type="number" value={formData.quantity} onChange={handleInputChange} required placeholder="100" className="flex-1" />
-                      <Select name="quantity_type" value={formData.quantity_type} onValueChange={(val) => handleSelectChange('quantity_type', val)}>
-                        <SelectTrigger className="w-[100px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="SHARES">Shares</SelectItem>
-                          <SelectItem value="LOTS">Lots</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <Label htmlFor="quantity">Quantity (Shares)</Label>
+                    <Input id="quantity" name="quantity" type="number" value={formData.quantity} onChange={handleInputChange} required placeholder="100" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="commission">Commission</Label>
@@ -845,9 +855,15 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="stop_loss">Stop Loss (Optional)</Label>
-                  <Input id="stop_loss" name="stop_loss" type="number" step="0.01" value={formData.stop_loss} onChange={handleInputChange} placeholder="0.00" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="stop_loss">Stop Loss (Optional)</Label>
+                    <Input id="stop_loss" name="stop_loss" type="number" step="0.01" value={formData.stop_loss} onChange={handleInputChange} placeholder="0.00" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="take_profit">Take Profit (Optional)</Label>
+                    <Input id="take_profit" name="take_profit" type="number" step="0.01" value={formData.take_profit} onChange={handleInputChange} placeholder="0.00" />
+                  </div>
                 </div>
 
                 <div className="space-y-2">

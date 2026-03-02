@@ -36,7 +36,7 @@ export function CalendarHeatmap({ data }: CalendarHeatmapProps) {
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
 
   return (
-    <div className="w-full max-w-md mx-auto">
+    <div className="w-full h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <Button variant="ghost" size="icon" onClick={prevMonth}>
           <ChevronLeft className="h-4 w-4" />
@@ -55,9 +55,9 @@ export function CalendarHeatmap({ data }: CalendarHeatmapProps) {
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
+      <div className="grid grid-cols-7 auto-rows-fr gap-2 flex-1">
         {paddingDays.map((_, i) => (
-          <div key={`padding-${i}`} className="aspect-square" />
+          <div key={`padding-${i}`} className="w-full h-full min-h-[80px] rounded-md" />
         ))}
         
         {daysInMonth.map((day) => {
@@ -72,7 +72,7 @@ export function CalendarHeatmap({ data }: CalendarHeatmapProps) {
                 <TooltipTrigger asChild>
                   <div 
                     className={`
-                      aspect-square rounded-md flex flex-col items-center justify-center text-xs cursor-pointer transition-all hover:opacity-80 relative
+                      w-full h-full min-h-[80px] rounded-md flex flex-col items-center justify-center text-xs cursor-pointer transition-all hover:opacity-80 relative
                       ${getColor(value)}
                       ${isToday ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}
                     `}
@@ -81,8 +81,8 @@ export function CalendarHeatmap({ data }: CalendarHeatmapProps) {
                       {format(day, 'd')}
                     </span>
                     {value !== 0 && (
-                      <span className="text-[10px] text-white/90 font-mono hidden sm:block">
-                        ${Math.abs(value).toFixed(0)}
+                      <span className="text-[10px] text-white/90 font-mono hidden sm:block truncate w-full text-center px-1">
+                        ${Math.abs(value).toFixed(2)}
                       </span>
                     )}
                   </div>

@@ -51,6 +51,13 @@ try {
   db.prepare("ALTER TABLE trades ADD COLUMN quantity_type TEXT DEFAULT 'SHARES'").run();
 }
 
+// Migration to add take_profit if it doesn't exist
+try {
+  db.prepare('SELECT take_profit FROM trades LIMIT 1').run();
+} catch (error) {
+  db.prepare('ALTER TABLE trades ADD COLUMN take_profit REAL').run();
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -77,11 +84,11 @@ async function startServer() {
   // Add a trade
   app.post('/api/trades', (req, res) => {
     try {
-      const { symbol, side, entry_date, entry_time, entry_price, exit_price, stop_loss, quantity, quantity_type, commission, setup, tags, notes } = req.body;
+      const { symbol, side, entry_date, entry_time, entry_price, exit_price, stop_loss, take_profit, quantity, quantity_type, commission, setup, tags, notes } = req.body;
       
       const stmt = db.prepare(`
-        INSERT INTO trades (symbol, side, entry_date, entry_time, entry_price, exit_price, stop_loss, quantity, quantity_type, commission, setup, tags, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO trades (symbol, side, entry_date, entry_time, entry_price, exit_price, stop_loss, take_profit, quantity, quantity_type, commission, setup, tags, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       const info = stmt.run(
@@ -92,6 +99,7 @@ async function startServer() {
         entry_price, 
         exit_price, 
         stop_loss || 0,
+        take_profit || 0,
         quantity, 
         quantity_type || 'SHARES',
         commission || 0, 
@@ -111,11 +119,11 @@ async function startServer() {
   app.put('/api/trades/:id', (req, res) => {
     try {
       const { id } = req.params;
-      const { symbol, side, entry_date, entry_time, entry_price, exit_price, stop_loss, quantity, quantity_type, commission, setup, tags, notes } = req.body;
+      const { symbol, side, entry_date, entry_time, entry_price, exit_price, stop_loss, take_profit, quantity, quantity_type, commission, setup, tags, notes } = req.body;
       
       const stmt = db.prepare(`
         UPDATE trades 
-        SET symbol = ?, side = ?, entry_date = ?, entry_time = ?, entry_price = ?, exit_price = ?, stop_loss = ?, quantity = ?, quantity_type = ?, commission = ?, setup = ?, tags = ?, notes = ?
+        SET symbol = ?, side = ?, entry_date = ?, entry_time = ?, entry_price = ?, exit_price = ?, stop_loss = ?, take_profit = ?, quantity = ?, quantity_type = ?, commission = ?, setup = ?, tags = ?, notes = ?
         WHERE id = ?
       `);
       
@@ -127,6 +135,7 @@ async function startServer() {
         entry_price, 
         exit_price, 
         stop_loss || 0,
+        take_profit || 0,
         quantity, 
         quantity_type || 'SHARES',
         commission || 0, 

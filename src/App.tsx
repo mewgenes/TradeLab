@@ -40,7 +40,7 @@ interface Stats {
   totalTrades: number;
   avgWin: number;
   avgLoss: number;
-  avgRMultiple: number;
+  avgRR: number;
   equityCurve: { date: string; balance: number }[];
   dailyPnL: { date: string; value: number }[];
   hourlyPnL: { time: string; value: number }[];
@@ -207,15 +207,6 @@ export default function App() {
     const quantityMultiplier = trade.quantity_type === 'LOTS' ? 100 : 1;
     const gross = (trade.exit_price - trade.entry_price) * trade.quantity * quantityMultiplier * multiplier;
     return gross - trade.commission;
-  };
-
-  // Helper to calculate R-Multiple
-  const calculateR = (trade: Trade) => {
-    if (!trade.stop_loss || trade.stop_loss === 0) return 0;
-    const risk = Math.abs(trade.entry_price - trade.stop_loss);
-    if (risk === 0) return 0;
-    const multiplier = trade.side === 'LONG' ? 1 : -1;
-    return ((trade.exit_price - trade.entry_price) * multiplier) / risk;
   };
 
   // Helper to calculate Planned RR Ratio
@@ -389,11 +380,11 @@ export default function App() {
                   </Card>
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Avg R-Multiple</CardTitle>
+                      <CardTitle className="text-sm font-medium">Average RR</CardTitle>
                       <TrendingUp className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{stats.avgRMultiple.toFixed(2)}R</div>
+                      <div className="text-2xl font-bold">{stats.avgRR.toFixed(2)}</div>
                       <p className="text-xs text-muted-foreground">
                         Average Risk:Reward
                       </p>
@@ -550,8 +541,7 @@ export default function App() {
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Qty</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Entry</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Exit</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">RR Ratio</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">R</th>
+                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">RR</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">P&L</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Tags</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Notes</th>
@@ -568,7 +558,6 @@ export default function App() {
                         ) : (
                           filteredTrades.map((trade) => {
                             const pnl = calculatePnL(trade);
-                            const r = calculateR(trade);
                             const plannedRR = calculatePlannedRR(trade);
                             return (
                               <tr key={trade.id} className="border-b transition-colors hover:bg-muted/50">
@@ -586,8 +575,7 @@ export default function App() {
                                 </td>
                                 <td className="p-4 align-middle text-right">${trade.entry_price.toFixed(2)}</td>
                                 <td className="p-4 align-middle text-right">${trade.exit_price.toFixed(2)}</td>
-                                <td className="p-4 align-middle text-right font-mono">{plannedRR > 0 ? `${plannedRR.toFixed(2)}:1` : '-'}</td>
-                                <td className="p-4 align-middle text-right font-mono">{r.toFixed(2)}R</td>
+                                <td className="p-4 align-middle text-right font-mono">{plannedRR > 0 ? plannedRR.toFixed(2) : '-'}</td>
                                 <td className={`p-4 align-middle text-right font-bold ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                   ${pnl.toFixed(2)}
                                 </td>

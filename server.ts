@@ -177,8 +177,8 @@ async function startServer() {
       let losingTrades = 0;
       let totalWins = 0;
       let totalLosses = 0;
-      let totalRR = 0;
-      let tradesWithRR = 0;
+      let totalRMultiple = 0;
+      let tradesWithRisk = 0;
       
       const equityCurve = [];
       let runningBalance = 0; // Assuming starting at 0 for P&L curve
@@ -211,14 +211,16 @@ async function startServer() {
           totalLosses += Math.abs(netPnL);
         }
 
-        // Calculate Planned RR
-        if (trade.stop_loss && trade.stop_loss > 0 && trade.take_profit && trade.take_profit > 0) {
+        // Calculate R-Multiple
+        if (trade.stop_loss && trade.stop_loss > 0) {
           const risk = Math.abs(trade.entry_price - trade.stop_loss);
-          const reward = Math.abs(trade.take_profit - trade.entry_price);
           if (risk > 0) {
-            const rr = reward / risk;
-            totalRR += rr;
-            tradesWithRR++;
+            // R-Multiple is price-based, so quantity multiplier doesn't affect the ratio, 
+            // but let's be consistent. Actually R is (Exit - Entry) / (Entry - Stop).
+            // Multipliers cancel out.
+            const rMultiple = (trade.exit_price - trade.entry_price) * multiplier / risk;
+            totalRMultiple += rMultiple;
+            tradesWithRisk++;
           }
         }
 
@@ -249,7 +251,7 @@ async function startServer() {
       const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? 999 : 0;
       const avgWin = winningTrades > 0 ? totalWins / winningTrades : 0;
       const avgLoss = losingTrades > 0 ? totalLosses / losingTrades : 0;
-      const avgRR = tradesWithRR > 0 ? totalRR / tradesWithRR : 0;
+      const avgRMultiple = tradesWithRisk > 0 ? totalRMultiple / tradesWithRisk : 0;
       
       const dailyPnL = Object.entries(dailyPnLMap).map(([date, value]) => ({ date, value }));
       const hourlyPnL = Object.entries(hourlyPnLMap)
@@ -263,7 +265,7 @@ async function startServer() {
         totalTrades,
         avgWin,
         avgLoss,
-        avgRR,
+        avgRMultiple,
         equityCurve,
         dailyPnL,
         hourlyPnL

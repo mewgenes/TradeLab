@@ -40,7 +40,7 @@ interface Stats {
   totalTrades: number;
   avgWin: number;
   avgLoss: number;
-  avgRR: number;
+  avgRMultiple: number;
   equityCurve: { date: string; balance: number }[];
   dailyPnL: { date: string; value: number }[];
   hourlyPnL: { time: string; value: number }[];
@@ -207,6 +207,15 @@ export default function App() {
     const quantityMultiplier = trade.quantity_type === 'LOTS' ? 100 : 1;
     const gross = (trade.exit_price - trade.entry_price) * trade.quantity * quantityMultiplier * multiplier;
     return gross - trade.commission;
+  };
+
+  // Helper to calculate R-Multiple
+  const calculateR = (trade: Trade) => {
+    if (!trade.stop_loss || trade.stop_loss === 0) return 0;
+    const risk = Math.abs(trade.entry_price - trade.stop_loss);
+    if (risk === 0) return 0;
+    const multiplier = trade.side === 'LONG' ? 1 : -1;
+    return ((trade.exit_price - trade.entry_price) * multiplier) / risk;
   };
 
   // Helper to calculate Planned RR Ratio
@@ -380,11 +389,11 @@ export default function App() {
                   </Card>
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Average RR</CardTitle>
+                      <CardTitle className="text-sm font-medium">Avg R-Multiple</CardTitle>
                       <TrendingUp className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{stats.avgRR.toFixed(2)}</div>
+                      <div className="text-2xl font-bold">{stats.avgRMultiple.toFixed(2)}R</div>
                       <p className="text-xs text-muted-foreground">
                         Average Risk:Reward
                       </p>
@@ -414,7 +423,7 @@ export default function App() {
                       <CardTitle>Equity Curve</CardTitle>
                     </CardHeader>
                     <CardContent className="pl-2 flex-1 flex flex-col">
-                      <div className="flex-1 w-full min-h-350px">
+                      <div className="flex-1 w-full min-h-[350px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={stats.equityCurve}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
@@ -475,7 +484,7 @@ export default function App() {
                 {/* Filters */}
                 <Card className="p-4">
                   <div className="flex flex-wrap gap-4 items-end">
-                    <div className="space-y-2 w-full sm:w-auto flex-1 min-w-200px">
+                    <div className="space-y-2 w-full sm:w-auto flex-1 min-w-[200px]">
                       <Label htmlFor="filter-symbol" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                         <Search className="h-3 w-3" /> Symbol
                       </Label>
@@ -487,7 +496,7 @@ export default function App() {
                         className="h-9"
                       />
                     </div>
-                    <div className="space-y-2 w-full sm:w-auto min-w-150px">
+                    <div className="space-y-2 w-full sm:w-auto min-w-[150px]">
                       <Label htmlFor="filter-side" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                         <Filter className="h-3 w-3" /> Side
                       </Label>
@@ -502,7 +511,7 @@ export default function App() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2 w-full sm:w-auto min-w-150px">
+                    <div className="space-y-2 w-full sm:w-auto min-w-[150px]">
                       <Label htmlFor="filter-setup" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                         <Filter className="h-3 w-3" /> Setup
                       </Label>
@@ -541,7 +550,8 @@ export default function App() {
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Qty</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Entry</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Exit</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">RR</th>
+                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">RR Ratio</th>
+                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">R</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">P&L</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Tags</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Notes</th>
@@ -558,6 +568,7 @@ export default function App() {
                         ) : (
                           filteredTrades.map((trade) => {
                             const pnl = calculatePnL(trade);
+                            const r = calculateR(trade);
                             const plannedRR = calculatePlannedRR(trade);
                             return (
                               <tr key={trade.id} className="border-b transition-colors hover:bg-muted/50">
@@ -575,7 +586,8 @@ export default function App() {
                                 </td>
                                 <td className="p-4 align-middle text-right">${trade.entry_price.toFixed(2)}</td>
                                 <td className="p-4 align-middle text-right">${trade.exit_price.toFixed(2)}</td>
-                                <td className="p-4 align-middle text-right font-mono">{plannedRR > 0 ? plannedRR.toFixed(2) : '-'}</td>
+                                <td className="p-4 align-middle text-right font-mono">{plannedRR > 0 ? `${plannedRR.toFixed(2)}:1` : '-'}</td>
+                                <td className="p-4 align-middle text-right font-mono">{r.toFixed(2)}R</td>
                                 <td className={`p-4 align-middle text-right font-bold ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                   ${pnl.toFixed(2)}
                                 </td>
@@ -677,7 +689,7 @@ export default function App() {
                       <CardTitle>Time of Day Performance</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-300px w-full">
+                      <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={stats.hourlyPnL}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
@@ -705,7 +717,7 @@ export default function App() {
                       <CardTitle>Setup Performance</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-300px w-full">
+                      <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={setupPerformance} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
@@ -733,7 +745,7 @@ export default function App() {
                       <CardTitle>Win Rate by Setup</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-300px w-full">
+                      <div className="h-[300px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={setupPerformance}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />

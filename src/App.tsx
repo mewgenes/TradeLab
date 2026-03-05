@@ -414,7 +414,7 @@ export default function App() {
                       <CardTitle>Equity Curve</CardTitle>
                     </CardHeader>
                     <CardContent className="pl-2 flex-1 flex flex-col">
-                      <div className="flex-1 w-full min-h-[350px]">
+                      <div className="flex-1 w-full min-h-350px">
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={stats.equityCurve}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
@@ -475,7 +475,7 @@ export default function App() {
                 {/* Filters */}
                 <Card className="p-4">
                   <div className="flex flex-wrap gap-4 items-end">
-                    <div className="space-y-2 w-full sm:w-auto flex-1 min-w-[200px]">
+                    <div className="space-y-2 w-full sm:w-auto flex-1 min-w-200px">
                       <Label htmlFor="filter-symbol" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                         <Search className="h-3 w-3" /> Symbol
                       </Label>
@@ -487,7 +487,7 @@ export default function App() {
                         className="h-9"
                       />
                     </div>
-                    <div className="space-y-2 w-full sm:w-auto min-w-[150px]">
+                    <div className="space-y-2 w-full sm:w-auto min-w-150px">
                       <Label htmlFor="filter-side" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                         <Filter className="h-3 w-3" /> Side
                       </Label>
@@ -502,7 +502,7 @@ export default function App() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2 w-full sm:w-auto min-w-[150px]">
+                    <div className="space-y-2 w-full sm:w-auto min-w-150px">
                       <Label htmlFor="filter-setup" className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                         <Filter className="h-3 w-3" /> Setup
                       </Label>
@@ -677,7 +677,7 @@ export default function App() {
                       <CardTitle>Time of Day Performance</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-[300px] w-full">
+                      <div className="h-300px w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={stats.hourlyPnL}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
@@ -705,7 +705,7 @@ export default function App() {
                       <CardTitle>Setup Performance</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-[300px] w-full">
+                      <div className="h-300px w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={setupPerformance} layout="vertical">
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
@@ -733,7 +733,7 @@ export default function App() {
                       <CardTitle>Win Rate by Setup</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="h-[300px] w-full">
+                      <div className="h-300px w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={setupPerformance}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />

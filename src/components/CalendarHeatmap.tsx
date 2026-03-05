@@ -57,7 +57,7 @@ export function CalendarHeatmap({ data }: CalendarHeatmapProps) {
 
       <div className="grid grid-cols-7 auto-rows-fr gap-2 flex-1">
         {paddingDays.map((_, i) => (
-          <div key={`padding-${i}`} className="w-full h-full min-h-[80px] rounded-md" />
+          <div key={`padding-${i}`} className="w-full h-full min-h-80px rounded-md" />
         ))}
         
         {daysInMonth.map((day) => {
@@ -72,7 +72,7 @@ export function CalendarHeatmap({ data }: CalendarHeatmapProps) {
                 <TooltipTrigger asChild>
                   <div 
                     className={`
-                      w-full h-full min-h-[80px] rounded-md flex flex-col items-center justify-center text-xs cursor-pointer transition-all hover:opacity-80 relative
+                      w-full h-full min-h-80px rounded-md flex flex-col items-center justify-center text-xs cursor-pointer transition-all hover:opacity-80 relative
                       ${getColor(value)}
                       ${isToday ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}
                     `}

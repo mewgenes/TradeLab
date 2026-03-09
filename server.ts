@@ -177,8 +177,8 @@ async function startServer() {
       let losingTrades = 0;
       let totalWins = 0;
       let totalLosses = 0;
-      let totalRMultiple = 0;
-      let tradesWithRisk = 0;
+      let totalRR = 0;
+      let tradesWithRR = 0;
       
       const equityCurve = [];
       let runningBalance = 0; // Assuming starting at 0 for P&L curve
@@ -190,7 +190,7 @@ async function startServer() {
         return dateA - dateB;
       });
 
-      const dailyPnLMap: Record<string, number> = {};
+      const dailyPnLMap: Record<string, { pnl: number, trades: number, wins: number }> = {};
       const hourlyPnLMap: Record<string, number> = {};
 
       for (const trade of sortedTrades as any[]) {
@@ -211,16 +211,14 @@ async function startServer() {
           totalLosses += Math.abs(netPnL);
         }
 
-        // Calculate R-Multiple
-        if (trade.stop_loss && trade.stop_loss > 0) {
+        // Calculate Planned RR
+        if (trade.stop_loss && trade.stop_loss > 0 && trade.take_profit && trade.take_profit > 0) {
           const risk = Math.abs(trade.entry_price - trade.stop_loss);
+          const reward = Math.abs(trade.take_profit - trade.entry_price);
           if (risk > 0) {
-            // R-Multiple is price-based, so quantity multiplier doesn't affect the ratio, 
-            // but let's be consistent. Actually R is (Exit - Entry) / (Entry - Stop).
-            // Multipliers cancel out.
-            const rMultiple = (trade.exit_price - trade.entry_price) * multiplier / risk;
-            totalRMultiple += rMultiple;
-            tradesWithRisk++;
+            const rr = reward / risk;
+            totalRR += rr;
+            tradesWithRR++;
           }
         }
 
@@ -231,9 +229,13 @@ async function startServer() {
 
         // Daily P&L
         if (!dailyPnLMap[trade.entry_date]) {
-          dailyPnLMap[trade.entry_date] = 0;
+          dailyPnLMap[trade.entry_date] = { pnl: 0, trades: 0, wins: 0 };
         }
-        dailyPnLMap[trade.entry_date] += netPnL;
+        dailyPnLMap[trade.entry_date].pnl += netPnL;
+        dailyPnLMap[trade.entry_date].trades += 1;
+        if (netPnL > 0) {
+          dailyPnLMap[trade.entry_date].wins += 1;
+        }
 
         // Hourly P&L
         if (trade.entry_time) {
@@ -248,12 +250,18 @@ async function startServer() {
 
       const totalTrades = winningTrades + losingTrades;
       const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
-      const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? 999 : 0;
+      // User requested Profit Factor to be the same as Average RR
+      const avgRR = tradesWithRR > 0 ? totalRR / tradesWithRR : 0;
+      const profitFactor = avgRR;
       const avgWin = winningTrades > 0 ? totalWins / winningTrades : 0;
       const avgLoss = losingTrades > 0 ? totalLosses / losingTrades : 0;
-      const avgRMultiple = tradesWithRisk > 0 ? totalRMultiple / tradesWithRisk : 0;
       
-      const dailyPnL = Object.entries(dailyPnLMap).map(([date, value]) => ({ date, value }));
+      const dailyPnL = Object.entries(dailyPnLMap).map(([date, data]) => ({ 
+        date, 
+        value: data.pnl,
+        trades: data.trades,
+        wins: data.wins
+      }));
       const hourlyPnL = Object.entries(hourlyPnLMap)
         .map(([time, value]) => ({ time, value }))
         .sort((a, b) => parseInt(a.time) - parseInt(b.time));
@@ -263,9 +271,11 @@ async function startServer() {
         winRate,
         profitFactor,
         totalTrades,
+        winningTrades,
+        losingTrades,
         avgWin,
         avgLoss,
-        avgRMultiple,
+        avgRR,
         equityCurve,
         dailyPnL,
         hourlyPnL

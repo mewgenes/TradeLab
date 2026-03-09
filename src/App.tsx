@@ -5,14 +5,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { Plus, TrendingUp, TrendingDown, Activity, DollarSign, Calendar as CalendarIcon, PieChart as PieChartIcon, Pencil, Trash2, FileText, X, Filter, Search } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Cell, AreaChart, Area } from 'recharts';
+import { Plus, TrendingUp, Activity, Calendar as CalendarIcon, Pencil, Trash2, FileText, X, Filter, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { CalendarHeatmap } from '@/components/CalendarHeatmap';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
+
+import { DashboardStats } from '@/components/DashboardStats';
 
 // Types
 interface Trade {
@@ -38,11 +39,13 @@ interface Stats {
   winRate: number;
   profitFactor: number;
   totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
   avgWin: number;
   avgLoss: number;
-  avgRMultiple: number;
+  avgRR: number;
   equityCurve: { date: string; balance: number }[];
-  dailyPnL: { date: string; value: number }[];
+  dailyPnL: { date: string; value: number; trades: number; wins: number }[];
   hourlyPnL: { time: string; value: number }[];
 }
 
@@ -53,6 +56,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'journal' | 'analytics'>('dashboard');
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Filter State
   const [filters, setFilters] = useState({
@@ -209,15 +214,6 @@ export default function App() {
     return gross - trade.commission;
   };
 
-  // Helper to calculate R-Multiple
-  const calculateR = (trade: Trade) => {
-    if (!trade.stop_loss || trade.stop_loss === 0) return 0;
-    const risk = Math.abs(trade.entry_price - trade.stop_loss);
-    if (risk === 0) return 0;
-    const multiplier = trade.side === 'LONG' ? 1 : -1;
-    return ((trade.exit_price - trade.entry_price) * multiplier) / risk;
-  };
-
   // Helper to calculate Planned RR Ratio
   const calculatePlannedRR = (trade: Trade) => {
     if (!trade.stop_loss || trade.stop_loss === 0 || !trade.take_profit || trade.take_profit === 0) return 0;
@@ -243,114 +239,75 @@ export default function App() {
     return Array.from(setups);
   }, [trades]);
 
-  // Analytics Data Preparation
-  const setupPerformance = useMemo(() => {
-    const performance: Record<string, { wins: number; losses: number; total: number; pnl: number }> = {};
-    trades.forEach(trade => {
-      const pnl = calculatePnL(trade);
-      const setup = trade.setup || 'Unknown';
-      if (!performance[setup]) performance[setup] = { wins: 0, losses: 0, total: 0, pnl: 0 };
-      
-      performance[setup].total++;
-      performance[setup].pnl += pnl;
-      if (pnl > 0) performance[setup].wins++;
-      else performance[setup].losses++;
-    });
-    
-    return Object.entries(performance).map(([name, data]) => ({
-      name,
-      ...data,
-      winRate: (data.wins / data.total) * 100
-    })).sort((a, b) => b.pnl - a.pnl);
-  }, [trades]);
-
-  // Advanced Analytics Summary
-  const analyticsSummary = useMemo(() => {
-    if (!trades.length) return null;
-    
-    let currentWinStreak = 0;
-    let maxWinStreak = 0;
-    let currentLossStreak = 0;
-    let maxLossStreak = 0;
-    let totalPnL = 0;
-
-    // Sort trades by date/time for streak calculation
-    const sortedTrades = [...trades].sort((a, b) => {
-      const dateA = new Date(`${a.entry_date}T${a.entry_time || '00:00'}`).getTime();
-      const dateB = new Date(`${b.entry_date}T${b.entry_time || '00:00'}`).getTime();
-      return dateA - dateB;
-    });
-
-    sortedTrades.forEach(trade => {
-      const pnl = calculatePnL(trade);
-      totalPnL += pnl;
-
-      if (pnl > 0) {
-        currentWinStreak++;
-        currentLossStreak = 0;
-        if (currentWinStreak > maxWinStreak) maxWinStreak = currentWinStreak;
-      } else if (pnl < 0) {
-        currentLossStreak++;
-        currentWinStreak = 0;
-        if (currentLossStreak > maxLossStreak) maxLossStreak = currentLossStreak;
-      }
-    });
-
-    const avgPnLPerTrade = totalPnL / trades.length;
-
-    return {
-      avgPnLPerTrade,
-      maxWinStreak,
-      maxLossStreak
-    };
-  }, [trades]);
-
   return (
     <div className="min-h-screen bg-background text-foreground font-sans flex">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-card/50 p-6 flex flex-col gap-6 fixed h-full">
-        <div className="flex items-center gap-2 text-primary font-bold text-xl">
-          <Activity className="h-6 w-6" />
-          <span>TradeLab</span>
+      <aside 
+        className={cn(
+          "border-r border-border bg-card/50 flex flex-col gap-6 fixed h-full transition-all duration-300 z-50",
+          isSidebarCollapsed ? "w-16 px-4 py-6" : "w-64 p-6"
+        )}
+      >
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="absolute -right-3 top-6 h-6 w-6 rounded-full border bg-background shadow-md hover:bg-accent z-50"
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        >
+          {isSidebarCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+        </Button>
+
+        <div className={cn("flex items-center gap-2 text-primary font-bold text-xl overflow-hidden transition-all duration-300", isSidebarCollapsed && "justify-center")}>
+          <Activity className="h-6 w-6 shrink-0" />
+          {!isSidebarCollapsed && <span>TradeLab</span>}
         </div>
         
-        <div className="text-xs text-muted-foreground font-mono">
-          {format(new Date(), 'EEEE, MMM do yyyy')}
-        </div>
+        {!isSidebarCollapsed && (
+          <div className="text-xs text-muted-foreground font-mono">
+            {format(new Date(), 'EEEE, MMM do yyyy')}
+          </div>
+        )}
         
         <nav className="flex flex-col gap-2">
           <Button 
             variant={activeTab === 'dashboard' ? 'secondary' : 'ghost'} 
-            className="justify-start" 
+            className={cn("justify-start", isSidebarCollapsed && "justify-center px-2")}
             onClick={() => setActiveTab('dashboard')}
+            title={isSidebarCollapsed ? "Dashboard" : undefined}
           >
-            <TrendingUp className="mr-2 h-4 w-4" /> Dashboard
+            <TrendingUp className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} /> 
+            {!isSidebarCollapsed && "Dashboard"}
           </Button>
           <Button 
             variant={activeTab === 'journal' ? 'secondary' : 'ghost'} 
-            className="justify-start" 
+            className={cn("justify-start", isSidebarCollapsed && "justify-center px-2")}
             onClick={() => setActiveTab('journal')}
+            title={isSidebarCollapsed ? "Journal" : undefined}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" /> Journal
-          </Button>
-          <Button 
-            variant={activeTab === 'analytics' ? 'secondary' : 'ghost'} 
-            className="justify-start" 
-            onClick={() => setActiveTab('analytics')}
-          >
-            <PieChartIcon className="mr-2 h-4 w-4" /> Analytics
+            <CalendarIcon className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} /> 
+            {!isSidebarCollapsed && "Journal"}
           </Button>
         </nav>
 
-        <div className="mt-auto">
-          <Button className="w-full" onClick={() => openEntryModal()}>
-            <Plus className="mr-2 h-4 w-4" /> New Trade
+        <div className="mt-auto flex flex-col gap-2">
+          <Button 
+            className={cn("w-full", isSidebarCollapsed && "px-2")} 
+            onClick={() => openEntryModal()}
+            title={isSidebarCollapsed ? "New Trade" : undefined}
+          >
+            <Plus className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} /> 
+            {!isSidebarCollapsed && "New Trade"}
           </Button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-8 overflow-y-auto h-screen ml-64">
+      <main 
+        className={cn(
+          "flex-1 p-8 overflow-y-auto h-screen transition-all duration-300",
+          isSidebarCollapsed ? "ml-16" : "ml-64"
+        )}
+      >
         {loading ? (
           <div className="flex items-center justify-center h-full">Loading...</div>
         ) : (
@@ -360,73 +317,26 @@ export default function App() {
                 <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
                 
                 {/* KPI Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total P&L</CardTitle>
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className={`text-2xl font-bold ${stats.totalPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        ${stats.totalPnL.toFixed(2)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        All time realized P&L
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
-                      <Activity className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{stats.winRate.toFixed(2)}%</div>
-                      <p className="text-xs text-muted-foreground">
-                        {stats.totalTrades} total trades
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Avg R-Multiple</CardTitle>
-                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{stats.avgRMultiple.toFixed(2)}R</div>
-                      <p className="text-xs text-muted-foreground">
-                        Average Risk:Reward
-                      </p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Avg Win / Loss</CardTitle>
-                      <TrendingDown className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">
-                        ${stats.avgWin.toFixed(2)} / <span className="text-red-500">${stats.avgLoss.toFixed(2)}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Expectancy ratio
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
+                <DashboardStats stats={stats} />
 
-                {/* Charts Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                  {/* Equity Curve */}
-                  <Card className="col-span-1 lg:col-span-2 flex flex-col">
+                {/* Charts Row 1: Daily Net Cumulative P&L and Net Daily P&L */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Daily Net Cumulative P&L */}
+                  <Card className="flex flex-col">
                     <CardHeader>
-                      <CardTitle>Equity Curve</CardTitle>
+                      <CardTitle>Daily Net Cumulative P&L</CardTitle>
                     </CardHeader>
                     <CardContent className="pl-2 flex-1 flex flex-col">
                       <div className="flex-1 w-full min-h-[350px]">
                         <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={stats.equityCurve}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                          <AreaChart data={stats.equityCurve}>
+                            <defs>
+                              <linearGradient id="colorPnL" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
                             <XAxis 
                               dataKey="date" 
                               stroke="hsl(var(--muted-foreground))" 
@@ -440,30 +350,74 @@ export default function App() {
                               fontSize={12} 
                               tickLine={false} 
                               axisLine={false} 
-                              tickFormatter={(value) => `$${value.toFixed(2)}`} 
+                              tickFormatter={(value) => `$${value.toFixed(0)}`} 
                             />
                             <RechartsTooltip 
-                              formatter={(value: number) => `$${value.toFixed(2)}`}
+                              formatter={(value: number) => [`$${value.toFixed(2)}`, 'P&L']}
                               contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
                               itemStyle={{ color: 'hsl(var(--foreground))' }}
                             />
-                            <Line 
+                            <Area 
                               type="monotone" 
                               dataKey="balance" 
-                              stroke="hsl(var(--primary))" 
-                              strokeWidth={2} 
-                              dot={false} 
+                              stroke="#10b981" 
+                              fillOpacity={1} 
+                              fill="url(#colorPnL)" 
                             />
-                          </LineChart>
+                          </AreaChart>
                         </ResponsiveContainer>
                       </div>
                     </CardContent>
                   </Card>
 
-                  {/* Calendar Heatmap */}
-                  <Card className="col-span-1 lg:col-span-2 flex flex-col">
+                  {/* Net Daily P&L */}
+                  <Card className="flex flex-col">
                     <CardHeader>
-                      <CardTitle>P&L Heatmap</CardTitle>
+                      <CardTitle>Net Daily P&L</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pl-2 flex-1 flex flex-col">
+                      <div className="flex-1 w-full min-h-[350px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={stats.dailyPnL}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
+                            <XAxis 
+                              dataKey="date" 
+                              stroke="hsl(var(--muted-foreground))" 
+                              fontSize={12} 
+                              tickLine={false} 
+                              axisLine={false} 
+                              tickFormatter={(value) => format(new Date(value), 'MMM dd')}
+                            />
+                            <YAxis 
+                              stroke="hsl(var(--muted-foreground))" 
+                              fontSize={12} 
+                              tickLine={false} 
+                              axisLine={false} 
+                              tickFormatter={(value) => `$${value.toFixed(0)}`} 
+                            />
+                            <RechartsTooltip 
+                              formatter={(value: number) => [`$${value.toFixed(2)}`, 'Daily P&L']}
+                              cursor={{fill: 'hsl(var(--muted)/0.2)'}}
+                              contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                              itemStyle={{ color: 'hsl(var(--foreground))' }}
+                            />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                              {stats.dailyPnL.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.value >= 0 ? '#10b981' : '#ef4444'} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Charts Row 2: Calendar Heatmap */}
+                <div className="grid grid-cols-1 gap-6">
+                  <Card className="flex flex-col">
+                    <CardHeader>
+                      <CardTitle>Calendar</CardTitle>
                     </CardHeader>
                     <CardContent className="flex-1 flex flex-col">
                       <div className="flex-1 w-full">
@@ -550,8 +504,7 @@ export default function App() {
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Qty</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Entry</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Exit</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">RR Ratio</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">R</th>
+                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">RR</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">P&L</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Tags</th>
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Notes</th>
@@ -568,7 +521,6 @@ export default function App() {
                         ) : (
                           filteredTrades.map((trade) => {
                             const pnl = calculatePnL(trade);
-                            const r = calculateR(trade);
                             const plannedRR = calculatePlannedRR(trade);
                             return (
                               <tr key={trade.id} className="border-b transition-colors hover:bg-muted/50">
@@ -586,8 +538,7 @@ export default function App() {
                                 </td>
                                 <td className="p-4 align-middle text-right">${trade.entry_price.toFixed(2)}</td>
                                 <td className="p-4 align-middle text-right">${trade.exit_price.toFixed(2)}</td>
-                                <td className="p-4 align-middle text-right font-mono">{plannedRR > 0 ? `${plannedRR.toFixed(2)}:1` : '-'}</td>
-                                <td className="p-4 align-middle text-right font-mono">{r.toFixed(2)}R</td>
+                                <td className="p-4 align-middle text-right font-mono">{plannedRR > 0 ? plannedRR.toFixed(2) : '-'}</td>
                                 <td className={`p-4 align-middle text-right font-bold ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                   ${pnl.toFixed(2)}
                                 </td>
@@ -637,133 +588,6 @@ export default function App() {
                     </table>
                   </div>
                 </Card>
-              </div>
-            )}
-
-            {activeTab === 'analytics' && (
-              <div className="space-y-6">
-                <h2 className="text-3xl font-bold tracking-tight">Analytics</h2>
-                
-                {/* Analytics Summary Cards */}
-                {analyticsSummary && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Avg P&L / Trade</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className={`text-2xl font-bold ${analyticsSummary.avgPnLPerTrade >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          ${analyticsSummary.avgPnLPerTrade.toFixed(2)}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Max Win Streak</CardTitle>
-                        <TrendingUp className="h-4 w-4 text-green-500" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-green-500">
-                          {analyticsSummary.maxWinStreak}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Max Loss Streak</CardTitle>
-                        <TrendingDown className="h-4 w-4 text-red-500" />
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-red-500">
-                          {analyticsSummary.maxLossStreak}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Time of Day Performance</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={stats.hourlyPnL}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-                            <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" />
-                            <YAxis stroke="hsl(var(--muted-foreground))" />
-                            <RechartsTooltip 
-                              formatter={(value: number) => `$${value.toFixed(2)}`}
-                              cursor={{fill: 'hsl(var(--muted)/0.2)'}}
-                              contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                              itemStyle={{ color: 'hsl(var(--foreground))' }}
-                            />
-                            <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}>
-                              {stats.hourlyPnL.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.value >= 0 ? '#22c55e' : '#ef4444'} />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Setup Performance</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={setupPerformance} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-                            <XAxis type="number" stroke="hsl(var(--muted-foreground))" />
-                            <YAxis dataKey="name" type="category" stroke="hsl(var(--muted-foreground))" width={100} />
-                            <RechartsTooltip 
-                              formatter={(value: number) => `$${value.toFixed(2)}`}
-                              cursor={{fill: 'hsl(var(--muted)/0.2)'}}
-                              contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                              itemStyle={{ color: 'hsl(var(--foreground))' }}
-                            />
-                            <Bar dataKey="pnl" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}>
-                              {setupPerformance.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Win Rate by Setup</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={setupPerformance}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-                            <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
-                            <YAxis stroke="hsl(var(--muted-foreground))" />
-                            <RechartsTooltip 
-                              formatter={(value: number) => `${value.toFixed(2)}%`}
-                              cursor={{fill: 'hsl(var(--muted)/0.2)'}}
-                              contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                              itemStyle={{ color: 'hsl(var(--foreground))' }}
-                            />
-                            <Bar dataKey="winRate" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
               </div>
             )}
           </>

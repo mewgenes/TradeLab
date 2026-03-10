@@ -222,10 +222,14 @@ async function startServer() {
           }
         }
 
-        equityCurve.push({
-          date: trade.entry_date,
-          balance: runningBalance
-        });
+        if (equityCurve.length > 0 && equityCurve[equityCurve.length - 1].date === trade.entry_date) {
+          equityCurve[equityCurve.length - 1].balance = runningBalance;
+        } else {
+          equityCurve.push({
+            date: trade.entry_date,
+            balance: runningBalance
+          });
+        }
 
         // Daily P&L
         if (!dailyPnLMap[trade.entry_date]) {
@@ -262,6 +266,11 @@ async function startServer() {
         trades: data.trades,
         wins: data.wins
       }));
+      
+      const totalDays = dailyPnL.length;
+      const winningDays = dailyPnL.filter(d => d.value > 0).length;
+      const losingDays = dailyPnL.filter(d => d.value < 0).length;
+
       const hourlyPnL = Object.entries(hourlyPnLMap)
         .map(([time, value]) => ({ time, value }))
         .sort((a, b) => parseInt(a.time) - parseInt(b.time));
@@ -273,6 +282,9 @@ async function startServer() {
         totalTrades,
         winningTrades,
         losingTrades,
+        winningDays,
+        losingDays,
+        totalDays,
         avgWin,
         avgLoss,
         avgRR,

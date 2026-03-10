@@ -34,13 +34,16 @@ interface Trade {
   notes: string;
 }
 
-interface Stats {
+export interface Stats {
   totalPnL: number;
   winRate: number;
   profitFactor: number;
   totalTrades: number;
   winningTrades: number;
   losingTrades: number;
+  winningDays: number;
+  losingDays: number;
+  totalDays: number;
   avgWin: number;
   avgLoss: number;
   avgRR: number;

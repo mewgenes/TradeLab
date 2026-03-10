@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Cell, AreaChart, Area } from 'recharts';
-import { Plus, TrendingUp, Activity, Calendar as CalendarIcon, Pencil, Trash2, FileText, X, Filter, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, TrendingUp, Activity, Calendar as CalendarIcon, Pencil, Trash2, FileText, X, Filter, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { CalendarHeatmap } from '@/components/CalendarHeatmap';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -65,6 +65,17 @@ export default function App() {
     side: 'ALL',
     setup: 'ALL'
   });
+
+  // Sort State
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -225,13 +236,83 @@ export default function App() {
 
   // Filtered Trades
   const filteredTrades = useMemo(() => {
-    return trades.filter(trade => {
+    let result = trades.filter(trade => {
       const matchesSymbol = filters.symbol === '' || trade.symbol.toLowerCase().includes(filters.symbol.toLowerCase());
       const matchesSide = filters.side === 'ALL' || trade.side === filters.side;
       const matchesSetup = filters.setup === 'ALL' || (trade.setup && trade.setup === filters.setup);
       return matchesSymbol && matchesSide && matchesSetup;
     });
-  }, [trades, filters]);
+
+    if (sortConfig !== null) {
+      result.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+
+        switch (sortConfig.key) {
+          case 'Date':
+            aValue = new Date(a.entry_date).getTime();
+            bValue = new Date(b.entry_date).getTime();
+            break;
+          case 'Time':
+            aValue = a.entry_time;
+            bValue = b.entry_time;
+            break;
+          case 'Symbol':
+            aValue = a.symbol;
+            bValue = b.symbol;
+            break;
+          case 'Side':
+            aValue = a.side;
+            bValue = b.side;
+            break;
+          case 'Setup':
+            aValue = a.setup || '';
+            bValue = b.setup || '';
+            break;
+          case 'Qty':
+            aValue = a.quantity;
+            bValue = b.quantity;
+            break;
+          case 'Entry':
+            aValue = a.entry_price;
+            bValue = b.entry_price;
+            break;
+          case 'Exit':
+            aValue = a.exit_price;
+            bValue = b.exit_price;
+            break;
+          case 'RR':
+            aValue = calculatePlannedRR(a);
+            bValue = calculatePlannedRR(b);
+            break;
+          case 'P&L':
+            aValue = calculatePnL(a);
+            bValue = calculatePnL(b);
+            break;
+          case 'Tags':
+            aValue = a.tags.join(', ');
+            bValue = b.tags.join(', ');
+            break;
+          case 'Notes':
+            aValue = a.notes || '';
+            bValue = b.notes || '';
+            break;
+          default:
+            return 0;
+        }
+
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+
+    return result;
+  }, [trades, filters, sortConfig]);
 
   // Unique Setups for Filter
   const uniqueSetups = useMemo(() => {
@@ -496,18 +577,31 @@ export default function App() {
                     <table className="w-full caption-bottom text-sm text-left">
                       <thead className="[&_tr]:border-b">
                         <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Date</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Time</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Symbol</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Side</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Setup</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Qty</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Entry</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Exit</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">RR</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">P&L</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Tags</th>
-                          <th className="h-12 px-4 align-middle font-medium text-muted-foreground">Notes</th>
+                          {[
+                            { key: 'Date', label: 'Date', align: 'left' },
+                            { key: 'Time', label: 'Time', align: 'left' },
+                            { key: 'Symbol', label: 'Symbol', align: 'left' },
+                            { key: 'Side', label: 'Side', align: 'left' },
+                            { key: 'Setup', label: 'Setup', align: 'left' },
+                            { key: 'Qty', label: 'Qty', align: 'right' },
+                            { key: 'Entry', label: 'Entry', align: 'right' },
+                            { key: 'Exit', label: 'Exit', align: 'right' },
+                            { key: 'RR', label: 'RR', align: 'right' },
+                            { key: 'P&L', label: 'P&L', align: 'right' },
+                            { key: 'Tags', label: 'Tags', align: 'left' },
+                            { key: 'Notes', label: 'Notes', align: 'left' },
+                          ].map((col) => (
+                            <th key={col.key} className={`h-12 px-4 align-middle font-medium text-muted-foreground ${col.align === 'right' ? 'text-right' : ''}`}>
+                              <Button variant="ghost" onClick={() => handleSort(col.key)} className={`h-8 px-2 flex items-center gap-1 ${col.align === 'right' ? 'ml-auto' : ''} -ml-2 hover:bg-muted/50`}>
+                                {col.label}
+                                {sortConfig?.key === col.key ? (
+                                  sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                                ) : (
+                                  <ArrowUpDown className="h-3 w-3 opacity-50" />
+                                )}
+                              </Button>
+                            </th>
+                          ))}
                           <th className="h-12 px-4 align-middle font-medium text-muted-foreground text-right">Actions</th>
                         </tr>
                       </thead>

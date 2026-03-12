@@ -110,7 +110,7 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
   const avgWinLossRatio = stats.avgLoss > 0 ? stats.avgWin / stats.avgLoss : 0;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
       {/* Net P&L */}
       <Card className="bg-card/50 backdrop-blur-sm border-border/50 shadow-sm">
         <CardContent className="p-5 flex flex-col justify-between h-full min-h-[110px]">
@@ -157,6 +157,23 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
           <div className="flex flex-col justify-between h-full py-1">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-medium text-muted-foreground">Profit Factor</span>
+            </div>
+            <span className="text-2xl font-bold tracking-tight">
+              {stats.profitFactor === Infinity ? '∞' : stats.profitFactor.toFixed(2)}
+            </span>
+          </div>
+          <div className="w-12 h-12">
+            <CircleGauge value={stats.profitFactor === Infinity ? 3 : stats.profitFactor} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Average RR */}
+      <Card className="bg-card/50 backdrop-blur-sm border-border/50 shadow-sm">
+        <CardContent className="p-5 flex items-center justify-between h-full gap-2 min-h-[110px]">
+          <div className="flex flex-col justify-between h-full py-1">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-medium text-muted-foreground">Average RR</span>
             </div>
             <span className="text-2xl font-bold tracking-tight">
               {stats.avgRR.toFixed(2)}

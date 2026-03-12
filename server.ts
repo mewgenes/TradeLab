@@ -254,9 +254,8 @@ async function startServer() {
 
       const totalTrades = winningTrades + losingTrades;
       const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
-      // User requested Profit Factor to be the same as Average RR
       const avgRR = tradesWithRR > 0 ? totalRR / tradesWithRR : 0;
-      const profitFactor = avgRR;
+      const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? Infinity : 0;
       const avgWin = winningTrades > 0 ? totalWins / winningTrades : 0;
       const avgLoss = losingTrades > 0 ? totalLosses / losingTrades : 0;
       

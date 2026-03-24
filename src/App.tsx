@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Cell, AreaChart, Area } from 'recharts';
-import { Plus, TrendingUp, Activity, Calendar as CalendarIcon, Pencil, Trash2, FileText, X, Filter, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, TrendingUp, Activity, Calendar as CalendarIcon, Pencil, Trash2, FileText, X, Filter, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Target } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { CalendarHeatmap } from '@/components/CalendarHeatmap';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -14,6 +14,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 
 import { DashboardStats } from '@/components/DashboardStats';
+import { PropFirmSimulator } from '@/components/PropFirmSimulator';
 
 // Types
 interface Trade {
@@ -34,7 +35,7 @@ interface Trade {
   notes: string;
 }
 
-export interface Stats {
+interface Stats {
   totalPnL: number;
   winRate: number;
   profitFactor: number;
@@ -56,9 +57,10 @@ export default function App() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'journal' | 'analytics'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'journal' | 'analytics' | 'simulator'>('dashboard');
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [deleteConfirmationId, setDeleteConfirmationId] = useState<number | null>(null);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -211,12 +213,18 @@ export default function App() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this trade?')) return;
+    setDeleteConfirmationId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteConfirmationId === null) return;
     try {
-      await fetch(`/api/trades/${id}`, { method: 'DELETE' });
+      await fetch(`/api/trades/${deleteConfirmationId}`, { method: 'DELETE' });
       fetchData();
     } catch (error) {
       console.error('Error deleting trade:', error);
+    } finally {
+      setDeleteConfirmationId(null);
     }
   };
 
@@ -370,6 +378,15 @@ export default function App() {
           >
             <CalendarIcon className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} /> 
             {!isSidebarCollapsed && "Journal"}
+          </Button>
+          <Button 
+            variant={activeTab === 'simulator' ? 'secondary' : 'ghost'} 
+            className={cn("justify-start", isSidebarCollapsed && "justify-center px-2")}
+            onClick={() => setActiveTab('simulator')}
+            title={isSidebarCollapsed ? "Prop Firm Simulator" : undefined}
+          >
+            <Target className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} /> 
+            {!isSidebarCollapsed && "Simulator"}
           </Button>
         </nav>
 
@@ -689,6 +706,11 @@ export default function App() {
             )}
           </>
         )}
+
+        {/* Simulator Tab */}
+        {activeTab === 'simulator' && (
+          <PropFirmSimulator />
+        )}
       </main>
 
       {/* Entry Modal */}
@@ -807,6 +829,26 @@ export default function App() {
                   <Button type="submit">{editingId ? 'Update Trade' : 'Log Trade'}</Button>
                 </div>
               </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmationId !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-sm">
+            <CardHeader>
+              <CardTitle>Delete Trade</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-6">
+                Are you sure you want to delete this trade? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setDeleteConfirmationId(null)}>Cancel</Button>
+                <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+              </div>
             </CardContent>
           </Card>
         </div>

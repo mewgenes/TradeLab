@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,47 +7,99 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 
 export function PropFirmSimulator() {
-  const [winRate, setWinRate] = useState(50);
-  const [riskReward, setRiskReward] = useState(2);
-  const [riskPerTrade, setRiskPerTrade] = useState(1);
-  const [profitTarget, setProfitTarget] = useState(10);
-  const [maxDrawdown, setMaxDrawdown] = useState(10);
-  const [numSimulations, setNumSimulations] = useState(10000);
+  const [winRate, setWinRate] = useState<number | ''>(50);
+  const [riskReward, setRiskReward] = useState<number | ''>(2);
+  const [riskPerTrade, setRiskPerTrade] = useState<number | ''>(1);
+  const [profitTarget, setProfitTarget] = useState<number | ''>(10);
+  const [maxDrawdown, setMaxDrawdown] = useState<number | ''>(10);
+  const [numSimulations, setNumSimulations] = useState<number | ''>(10000);
   const [riskStyle, setRiskStyle] = useState<'compounding' | 'fixed'>('fixed');
-  const [tradesPerDay, setTradesPerDay] = useState(2);
+  const [tradesPerDay, setTradesPerDay] = useState<number | ''>(2);
 
   // Financial Inputs
-  const [challengeFee, setChallengeFee] = useState(500);
-  const [accountSize, setAccountSize] = useState(100000);
-  const [profitSplit, setProfitSplit] = useState(80);
-  const [payoutTargetPct, setPayoutTargetPct] = useState(4);
-  const [feeRefundPct, setFeeRefundPct] = useState(100);
+  const [challengeFee, setChallengeFee] = useState<number | ''>(500);
+  const [accountSize, setAccountSize] = useState<number | ''>(100000);
+  const [profitSplit, setProfitSplit] = useState<number | ''>(80);
+  const [payoutTargetPct, setPayoutTargetPct] = useState<number | ''>(4);
+  const [feeRefundPct, setFeeRefundPct] = useState<number | ''>(100);
 
   const [results, setResults] = useState<any>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
+
+  const clearInputError = (key: string) => {
+    setInputErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   const runSimulation = () => {
+    const errors: Record<string, string> = {};
+    const requiredNumber = (key: string, value: number | '') => {
+      if (value === '') {
+        errors[key] = 'Required';
+        return null;
+      }
+      if (!Number.isFinite(value)) {
+        errors[key] = 'Enter a valid number';
+        return null;
+      }
+      return value;
+    };
+
+    const wrVal = requiredNumber('winRate', winRate);
+    const rrVal = requiredNumber('riskReward', riskReward);
+    const riskPerTradeVal = requiredNumber('riskPerTrade', riskPerTrade);
+    const profitTargetVal = requiredNumber('profitTarget', profitTarget);
+    const maxDrawdownVal = requiredNumber('maxDrawdown', maxDrawdown);
+    const tradesPerDayVal = requiredNumber('tradesPerDay', tradesPerDay);
+    const numSimulationsVal = requiredNumber('numSimulations', numSimulations);
+
+    const challengeFeeVal = requiredNumber('challengeFee', challengeFee);
+    const accountSizeVal = requiredNumber('accountSize', accountSize);
+    const profitSplitVal = requiredNumber('profitSplit', profitSplit);
+    const payoutTargetPctVal = requiredNumber('payoutTargetPct', payoutTargetPct);
+    const feeRefundPctVal = requiredNumber('feeRefundPct', feeRefundPct);
+
+    if (Object.keys(errors).length > 0) {
+      setInputErrors(errors);
+      return;
+    }
+
+    setInputErrors({});
     setIsSimulating(true);
-    
+
     // Use setTimeout to allow UI to update before heavy computation
     setTimeout(() => {
-      const wr = winRate / 100;
-      const rr = riskReward;
-      const risk = riskPerTrade / 100;
-      const target = 1 + (profitTarget / 100);
-      const drawdownLimit = 1 - (maxDrawdown / 100);
+      const wr = (wrVal as number) / 100;
+      const rr = rrVal as number;
+      const risk = (riskPerTradeVal as number) / 100;
+      const target = 1 + ((profitTargetVal as number) / 100);
+      const drawdownLimit = 1 - ((maxDrawdownVal as number) / 100);
       const maxTrades = 1000;
-      
+      const tradesPerDayLocal = tradesPerDayVal as number;
+      const numSimulationsLocal = numSimulationsVal as number;
+      const challengeFeeLocal = challengeFeeVal as number;
+      const accountSizeLocal = accountSizeVal as number;
+      const profitSplitLocal = profitSplitVal as number;
+      const payoutTargetPctLocal = payoutTargetPctVal as number;
+      const feeRefundPctLocal = feeRefundPctVal as number;
+
       let passedCount = 0;
       let failedCount = 0;
       let totalTradesToPass = 0;
-      
+
       // Store paths for visualization (only keep up to 50 paths to avoid memory issues)
       const pathsToVisualize: any[] = [];
       const numPathsToKeep = 50;
 
-      const netProfitOnPayout = (accountSize * (payoutTargetPct / 100) * (profitSplit / 100)) + (challengeFee * (feeRefundPct / 100));
-      const breakEvenPassRate = (challengeFee / (netProfitOnPayout + challengeFee)) * 100;
+      const netProfitOnPayout =
+        (accountSizeLocal * (payoutTargetPctLocal / 100) * (profitSplitLocal / 100)) +
+        (challengeFeeLocal * (feeRefundPctLocal / 100));
+      const breakEvenPassRate = (challengeFeeLocal / (netProfitOnPayout + challengeFeeLocal)) * 100;
 
       // Handle edge cases
       if (wr <= 0) {
@@ -57,56 +109,62 @@ export function PropFirmSimulator() {
           avgDaysToPass: 0,
           riskOfRuin: 100,
           paths: [],
-          epv: -challengeFee,
+          epv: -challengeFeeLocal,
           roi: -100,
           probOfProfit: 0,
           breakEvenPassRate,
-          netProfitOnPayout
+          netProfitOnPayout,
+          plotMaxDrawdown: maxDrawdownVal as number,
+          plotProfitTarget: profitTargetVal as number,
+          plotChallengeFee: challengeFeeLocal
         });
         setIsSimulating(false);
         return;
       }
-      
+
       if (wr >= 1) {
         const tradesNeeded = Math.ceil((target - 1) / (risk * rr));
         setResults({
           passRate: 100,
           avgTradesToPass: tradesNeeded,
-          avgDaysToPass: tradesNeeded / tradesPerDay,
+          avgDaysToPass: tradesNeeded / tradesPerDayLocal,
           riskOfRuin: 0,
           paths: [],
           epv: netProfitOnPayout,
-          roi: (netProfitOnPayout / challengeFee) * 100,
+          roi: (netProfitOnPayout / challengeFeeLocal) * 100,
           probOfProfit: 100,
           breakEvenPassRate,
-          netProfitOnPayout
+          netProfitOnPayout,
+          plotMaxDrawdown: maxDrawdownVal as number,
+          plotProfitTarget: profitTargetVal as number,
+          plotChallengeFee: challengeFeeLocal
         });
         setIsSimulating(false);
         return;
       }
 
-      for (let i = 0; i < numSimulations; i++) {
+      for (let i = 0; i < numSimulationsLocal; i++) {
         let balance = 1.0;
         let trades = 0;
         let passed = false;
         let failed = false;
-        
+
         const currentPath = [{ trade: 0, balance: 1.0 }];
 
         while (trades < maxTrades && !passed && !failed) {
           trades++;
           const isWin = Math.random() < wr;
-          
+
           const riskAmount = riskStyle === 'compounding' ? balance * risk : 1.0 * risk;
-          
+
           if (isWin) {
             balance += riskAmount * rr;
           } else {
             balance -= riskAmount;
           }
-          
+
           if (pathsToVisualize.length < numPathsToKeep || i < numPathsToKeep) {
-             currentPath.push({ trade: trades, balance });
+            currentPath.push({ trade: trades, balance });
           }
 
           if (balance >= target) {
@@ -118,7 +176,7 @@ export function PropFirmSimulator() {
             failedCount++;
           }
         }
-        
+
         if (pathsToVisualize.length < numPathsToKeep) {
           pathsToVisualize.push(currentPath);
         }
@@ -127,16 +185,16 @@ export function PropFirmSimulator() {
       // Format data for Recharts
       // We need to pivot the data so each trade number has values for multiple lines
       const chartData: any[] = [];
-      const maxPathLength = Math.max(...pathsToVisualize.map(p => p.length), 0);
-      
+      const maxPathLength = Math.max(...pathsToVisualize.map((p) => p.length), 0);
+
       for (let t = 0; t < maxPathLength; t++) {
         const dataPoint: any = { trade: t };
         pathsToVisualize.forEach((path, index) => {
           if (t < path.length) {
             dataPoint[`path${index}`] = (path[t].balance - 1) * 100; // Convert to % return
           } else {
-             // Carry forward the last value if the simulation ended early
-             dataPoint[`path${index}`] = (path[path.length - 1].balance - 1) * 100;
+            // Carry forward the last value if the simulation ended early
+            dataPoint[`path${index}`] = (path[path.length - 1].balance - 1) * 100;
           }
         });
         chartData.push(dataPoint);
@@ -144,25 +202,25 @@ export function PropFirmSimulator() {
 
       // Secondary simulation for funded stage
       let fundedPassedCount = 0;
-      const fundedTarget = 1 + (payoutTargetPct / 100);
-      
-      for (let i = 0; i < numSimulations; i++) {
+      const fundedTarget = 1 + (payoutTargetPctLocal / 100);
+
+      for (let i = 0; i < numSimulationsLocal; i++) {
         let balance = 1.0;
         let trades = 0;
         let passed = false;
         let failed = false;
-        
+
         while (trades < maxTrades && !passed && !failed) {
           trades++;
           const isWin = Math.random() < wr;
           const riskAmount = riskStyle === 'compounding' ? balance * risk : 1.0 * risk;
-          
+
           if (isWin) {
             balance += riskAmount * rr;
           } else {
             balance -= riskAmount;
           }
-          
+
           if (balance >= fundedTarget) {
             passed = true;
             fundedPassedCount++;
@@ -171,28 +229,31 @@ export function PropFirmSimulator() {
           }
         }
       }
-      
-      const fundedPassRate = fundedPassedCount / numSimulations;
-      const challengePassRate = passedCount / numSimulations;
-      
-      const epv = (challengePassRate * netProfitOnPayout) - ((1 - challengePassRate) * challengeFee);
-      const roi = (epv / challengeFee) * 100;
+
+      const fundedPassRate = fundedPassedCount / numSimulationsLocal;
+      const challengePassRate = passedCount / numSimulationsLocal;
+
+      const epv = (challengePassRate * netProfitOnPayout) - ((1 - challengePassRate) * challengeFeeLocal);
+      const roi = (epv / challengeFeeLocal) * 100;
       const probOfProfit = challengePassRate * fundedPassRate * 100;
 
       setResults({
         passRate: challengePassRate * 100,
         avgTradesToPass: passedCount > 0 ? totalTradesToPass / passedCount : 0,
-        avgDaysToPass: passedCount > 0 ? (totalTradesToPass / passedCount) / tradesPerDay : 0,
-        riskOfRuin: (failedCount / numSimulations) * 100,
+        avgDaysToPass: passedCount > 0 ? (totalTradesToPass / passedCount) / tradesPerDayLocal : 0,
+        riskOfRuin: (failedCount / numSimulationsLocal) * 100,
         chartData,
         numPaths: pathsToVisualize.length,
         epv,
         roi,
         probOfProfit,
         breakEvenPassRate,
-        netProfitOnPayout
+        netProfitOnPayout,
+        plotMaxDrawdown: maxDrawdownVal as number,
+        plotProfitTarget: profitTargetVal as number,
+        plotChallengeFee: challengeFeeLocal
       });
-      
+
       setIsSimulating(false);
     }, 50);
   };
@@ -218,27 +279,80 @@ export function PropFirmSimulator() {
             <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="winRate">Win Rate (%)</Label>
-              <Input id="winRate" type="number" value={winRate} onChange={e => setWinRate(Number(e.target.value))} max={100} />
+              <Input
+                id="winRate"
+                type="number"
+                value={winRate}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setWinRate(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('winRate');
+                }}
+                max={100}
+              />
+              {inputErrors.winRate && <p className="text-sm text-red-500">{inputErrors.winRate}</p>}
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="riskReward">Risk:Reward Ratio (e.g. 2 for 1:2)</Label>
-              <Input id="riskReward" type="number" value={riskReward} onChange={e => setRiskReward(Number(e.target.value))} step={0.1} />
+              <Input
+                id="riskReward"
+                type="number"
+                value={riskReward}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setRiskReward(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('riskReward');
+                }}
+                step={0.1}
+              />
+              {inputErrors.riskReward && <p className="text-sm text-red-500">{inputErrors.riskReward}</p>}
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="riskPerTrade">Risk Per Trade (%)</Label>
-              <Input id="riskPerTrade" type="number" value={riskPerTrade} onChange={e => setRiskPerTrade(Number(e.target.value))} step={0.1} />
+              <Input
+                id="riskPerTrade"
+                type="number"
+                value={riskPerTrade}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setRiskPerTrade(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('riskPerTrade');
+                }}
+                step={0.1}
+              />
+              {inputErrors.riskPerTrade && <p className="text-sm text-red-500">{inputErrors.riskPerTrade}</p>}
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="profitTarget">Profit Target (%)</Label>
-              <Input id="profitTarget" type="number" value={profitTarget} onChange={e => setProfitTarget(Number(e.target.value))} />
+              <Input
+                id="profitTarget"
+                type="number"
+                value={profitTarget}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setProfitTarget(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('profitTarget');
+                }}
+              />
+              {inputErrors.profitTarget && <p className="text-sm text-red-500">{inputErrors.profitTarget}</p>}
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="maxDrawdown">Max Drawdown (%)</Label>
-              <Input id="maxDrawdown" type="number" value={maxDrawdown} onChange={e => setMaxDrawdown(Number(e.target.value))} />
+              <Input
+                id="maxDrawdown"
+                type="number"
+                value={maxDrawdown}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setMaxDrawdown(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('maxDrawdown');
+                }}
+              />
+              {inputErrors.maxDrawdown && <p className="text-sm text-red-500">{inputErrors.maxDrawdown}</p>}
             </div>
             
             <div className="space-y-2">
@@ -256,12 +370,36 @@ export function PropFirmSimulator() {
 
             <div className="space-y-2">
               <Label htmlFor="tradesPerDay">Avg Trades Per Day</Label>
-              <Input id="tradesPerDay" type="number" value={tradesPerDay} onChange={e => setTradesPerDay(Number(e.target.value))} step={0.1} />
+              <Input
+                id="tradesPerDay"
+                type="number"
+                value={tradesPerDay}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setTradesPerDay(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('tradesPerDay');
+                }}
+                step={0.1}
+              />
+              {inputErrors.tradesPerDay && <p className="text-sm text-red-500">{inputErrors.tradesPerDay}</p>}
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="numSimulations">Number of Simulations</Label>
-              <Input id="numSimulations" type="number" value={numSimulations} onChange={e => setNumSimulations(Number(e.target.value))} min={100} max={100000} step={100} />
+              <Input
+                id="numSimulations"
+                type="number"
+                value={numSimulations}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setNumSimulations(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('numSimulations');
+                }}
+                min={100}
+                max={100000}
+                step={100}
+              />
+              {inputErrors.numSimulations && <p className="text-sm text-red-500">{inputErrors.numSimulations}</p>}
             </div>
 
             <Button className="w-full" onClick={runSimulation} disabled={isSimulating}>
@@ -278,27 +416,79 @@ export function PropFirmSimulator() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="challengeFee">Challenge Fee ($)</Label>
-              <Input id="challengeFee" type="number" value={challengeFee} onChange={e => setChallengeFee(Number(e.target.value))} />
+              <Input
+                id="challengeFee"
+                type="number"
+                value={challengeFee}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setChallengeFee(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('challengeFee');
+                }}
+              />
+              {inputErrors.challengeFee && <p className="text-sm text-red-500">{inputErrors.challengeFee}</p>}
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="accountSize">Account Size ($)</Label>
-              <Input id="accountSize" type="number" value={accountSize} onChange={e => setAccountSize(Number(e.target.value))} />
+              <Input
+                id="accountSize"
+                type="number"
+                value={accountSize}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setAccountSize(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('accountSize');
+                }}
+              />
+              {inputErrors.accountSize && <p className="text-sm text-red-500">{inputErrors.accountSize}</p>}
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="profitSplit">Profit Split (%)</Label>
-              <Input id="profitSplit" type="number" value={profitSplit} onChange={e => setProfitSplit(Number(e.target.value))} max={100} />
+              <Input
+                id="profitSplit"
+                type="number"
+                value={profitSplit}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setProfitSplit(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('profitSplit');
+                }}
+                max={100}
+              />
+              {inputErrors.profitSplit && <p className="text-sm text-red-500">{inputErrors.profitSplit}</p>}
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="payoutTargetPct">Payout Target (%)</Label>
-              <Input id="payoutTargetPct" type="number" value={payoutTargetPct} onChange={e => setPayoutTargetPct(Number(e.target.value))} />
+              <Input
+                id="payoutTargetPct"
+                type="number"
+                value={payoutTargetPct}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setPayoutTargetPct(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('payoutTargetPct');
+                }}
+              />
+              {inputErrors.payoutTargetPct && <p className="text-sm text-red-500">{inputErrors.payoutTargetPct}</p>}
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="feeRefundPct">Fee Refund (%)</Label>
-              <Input id="feeRefundPct" type="number" value={feeRefundPct} onChange={e => setFeeRefundPct(Number(e.target.value))} max={100} />
+              <Input
+                id="feeRefundPct"
+                type="number"
+                value={feeRefundPct}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFeeRefundPct(v === '' ? '' : Number(v));
+                  if (v.trim() !== '') clearInputError('feeRefundPct');
+                }}
+                max={100}
+              />
+              {inputErrors.feeRefundPct && <p className="text-sm text-red-500">{inputErrors.feeRefundPct}</p>}
             </div>
           </CardContent>
         </Card>
@@ -364,7 +554,7 @@ export function PropFirmSimulator() {
                     />
                     <YAxis 
                       tickFormatter={(val) => `${val > 0 ? '+' : ''}${val.toFixed(0)}%`}
-                      domain={[-maxDrawdown, profitTarget]}
+                      domain={[-results.plotMaxDrawdown, results.plotProfitTarget]}
                     />
                     <Tooltip 
                       formatter={(value: number) => [`${value.toFixed(2)}%`, 'Return']}
@@ -384,8 +574,24 @@ export function PropFirmSimulator() {
                       />
                     ))}
                     {/* Target and Drawdown lines */}
-                    <Line type="step" dataKey={() => profitTarget} stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
-                    <Line type="step" dataKey={() => -maxDrawdown} stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
+                    <Line
+                      type="step"
+                      dataKey={() => results.plotProfitTarget}
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                    <Line
+                      type="step"
+                      dataKey={() => -results.plotMaxDrawdown}
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      isAnimationActive={false}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
@@ -452,7 +658,7 @@ export function PropFirmSimulator() {
               <CardContent className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[
-                    { name: 'Challenge Fee', value: challengeFee, fill: '#ef4444' },
+                    { name: 'Challenge Fee', value: results.plotChallengeFee ?? 0, fill: '#ef4444' },
                     { name: 'Expected Payout Value', value: results.epv, fill: results.epv > 0 ? '#10b981' : '#ef4444' }
                   ]} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -462,7 +668,7 @@ export function PropFirmSimulator() {
                     <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                       {
                         [
-                          { name: 'Challenge Fee', value: challengeFee, fill: '#ef4444' },
+                          { name: 'Challenge Fee', value: results.plotChallengeFee ?? 0, fill: '#ef4444' },
                           { name: 'Expected Payout Value', value: results.epv, fill: results.epv > 0 ? '#10b981' : '#ef4444' }
                         ].map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />

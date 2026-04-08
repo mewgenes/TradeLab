@@ -1,2 +1,3 @@
 trades.db
 node_modules
+.env

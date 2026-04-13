@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Cell, AreaChart, Area } from 'recharts';
-import { Plus, TrendingUp, Activity, Calendar as CalendarIcon, Pencil, Trash2, FileText, X, Filter, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Target } from 'lucide-react';
+import { Plus, TrendingUp, Activity, Calendar as CalendarIcon, Pencil, Trash2, FileText, X, Filter, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Target, LogOut } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { CalendarHeatmap } from '@/components/CalendarHeatmap';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 
 import { DashboardStats } from '@/components/DashboardStats';
 import { PropFirmSimulator } from '@/components/PropFirmSimulator';
+import { LoginPage } from '@/components/LoginPage';
 
 // Types
 interface Trade {
@@ -54,6 +55,37 @@ interface Stats {
 }
 
 export default function App() {
+  const [authToken, setAuthToken] = useState<string | null>(
+    () => localStorage.getItem('tradelab_token')
+  );
+  const [currentUser, setCurrentUser] = useState<string | null>(
+    () => localStorage.getItem('tradelab_user')
+  );
+
+  const handleLogin = (token: string, username: string) => {
+    localStorage.setItem('tradelab_token', token);
+    localStorage.setItem('tradelab_user', username);
+    setAuthToken(token);
+    setCurrentUser(username);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('tradelab_token');
+    localStorage.removeItem('tradelab_user');
+    setAuthToken(null);
+    setCurrentUser(null);
+  };
+
+  const authFetch = (url: string, options: RequestInit = {}) =>
+    fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+        ...(options.headers || {}),
+      },
+    });
+
   const [trades, setTrades] = useState<Trade[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,9 +136,13 @@ export default function App() {
     setLoading(true);
     try {
       const [tradesRes, statsRes] = await Promise.all([
-        fetch('/api/trades'),
-        fetch('/api/stats')
+        authFetch('/api/trades'),
+        authFetch('/api/stats')
       ]);
+      if (tradesRes.status === 401 || statsRes.status === 401) {
+        handleLogout();
+        return;
+      }
       const tradesData = await tradesRes.json();
       const statsData = await statsRes.json();
       setTrades(tradesData);
@@ -119,8 +155,8 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (authToken) fetchData();
+  }, [authToken]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -196,9 +232,8 @@ export default function App() {
       const url = editingId ? `/api/trades/${editingId}` : '/api/trades';
       const method = editingId ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method: method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
@@ -219,7 +254,7 @@ export default function App() {
   const confirmDelete = async () => {
     if (deleteConfirmationId === null) return;
     try {
-      await fetch(`/api/trades/${deleteConfirmationId}`, { method: 'DELETE' });
+      await authFetch(`/api/trades/${deleteConfirmationId}`, { method: 'DELETE' });
       fetchData();
     } catch (error) {
       console.error('Error deleting trade:', error);
@@ -331,6 +366,10 @@ export default function App() {
     return Array.from(setups);
   }, [trades]);
 
+  if (!authToken) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans flex">
       {/* Sidebar */}
@@ -391,13 +430,25 @@ export default function App() {
         </nav>
 
         <div className="mt-auto flex flex-col gap-2">
-          <Button 
-            className={cn("w-full", isSidebarCollapsed && "px-2")} 
+          <Button
+            className={cn("w-full", isSidebarCollapsed && "px-2")}
             onClick={() => openEntryModal()}
             title={isSidebarCollapsed ? "New Trade" : undefined}
           >
-            <Plus className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} /> 
+            <Plus className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} />
             {!isSidebarCollapsed && "New Trade"}
+          </Button>
+          {!isSidebarCollapsed && currentUser && (
+            <p className="text-xs text-muted-foreground text-center truncate px-1">{currentUser}</p>
+          )}
+          <Button
+            variant="ghost"
+            className={cn("w-full text-muted-foreground hover:text-foreground", isSidebarCollapsed && "px-2")}
+            onClick={handleLogout}
+            title={isSidebarCollapsed ? "Sign Out" : undefined}
+          >
+            <LogOut className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} />
+            {!isSidebarCollapsed && "Sign Out"}
           </Button>
         </div>
       </aside>

@@ -1,15 +1,59 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
 import { supabase } from './db.js';
+import { signToken, verifyToken } from './auth.js';
 
 const app = express();
 app.use(express.json());
 
+// POST /api/auth/login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    const { data: users } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .limit(1);
+
+    const user = users?.[0];
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    res.json({ token: signToken(user.id), username: user.username });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// GET /api/auth/me
+app.get('/api/auth/me', verifyToken, async (req, res) => {
+  try {
+    const { data } = await supabase
+      .from('users')
+      .select('id, username')
+      .eq('id', (req as any).userId)
+      .single();
+    res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
 // Get all trades
-app.get('/api/trades', async (req, res) => {
+app.get('/api/trades', verifyToken, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('trades')
       .select('*')
+      .eq('user_id', (req as any).userId)
       .order('entry_date', { ascending: false })
       .order('entry_time', { ascending: false });
 
@@ -27,7 +71,7 @@ app.get('/api/trades', async (req, res) => {
 });
 
 // Add a trade
-app.post('/api/trades', async (req, res) => {
+app.post('/api/trades', verifyToken, async (req, res) => {
   try {
     const {
       symbol, side, entry_date, entry_time, entry_price, exit_price,
@@ -52,6 +96,7 @@ app.post('/api/trades', async (req, res) => {
         setup,
         tags: JSON.stringify(tags || []),
         notes,
+        user_id: (req as any).userId,
       })
       .select()
       .single();
@@ -66,7 +111,7 @@ app.post('/api/trades', async (req, res) => {
 });
 
 // Update a trade
-app.put('/api/trades/:id', async (req, res) => {
+app.put('/api/trades/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -94,6 +139,7 @@ app.put('/api/trades/:id', async (req, res) => {
         notes,
       })
       .eq('id', id)
+      .eq('user_id', (req as any).userId)
       .select()
       .single();
 
@@ -112,10 +158,14 @@ app.put('/api/trades/:id', async (req, res) => {
 });
 
 // Delete a trade
-app.delete('/api/trades/:id', async (req, res) => {
+app.delete('/api/trades/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabase.from('trades').delete().eq('id', id);
+    const { error } = await supabase
+      .from('trades')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', (req as any).userId);
 
     if (error) throw error;
     res.json({ success: true });
@@ -126,9 +176,13 @@ app.delete('/api/trades/:id', async (req, res) => {
 });
 
 // Get Dashboard Stats
-app.get('/api/stats', async (req, res) => {
+app.get('/api/stats', verifyToken, async (req, res) => {
   try {
-    const { data, error } = await supabase.from('trades').select('*');
+    const { data, error } = await supabase
+      .from('trades')
+      .select('*')
+      .eq('user_id', (req as any).userId);
+
     if (error) throw error;
     const trades = data ?? [];
 

@@ -577,7 +577,7 @@ export function PropFirmSimulator() {
                     <Line
                       type="step"
                       dataKey={() => results.plotProfitTarget}
-                      stroke="#10b981"
+                      stroke="rgb(16, 185, 129)"
                       strokeWidth={2}
                       strokeDasharray="5 5"
                       dot={false}
@@ -586,7 +586,7 @@ export function PropFirmSimulator() {
                     <Line
                       type="step"
                       dataKey={() => -results.plotMaxDrawdown}
-                      stroke="#ef4444"
+                      stroke="rgb(239, 68, 68)"
                       strokeWidth={2}
                       strokeDasharray="5 5"
                       dot={false}
@@ -658,8 +658,8 @@ export function PropFirmSimulator() {
               <CardContent className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={[
-                    { name: 'Challenge Fee', value: results.plotChallengeFee ?? 0, fill: '#ef4444' },
-                    { name: 'Expected Payout Value', value: results.epv, fill: results.epv > 0 ? '#10b981' : '#ef4444' }
+                    { name: 'Challenge Fee', value: results.plotChallengeFee ?? 0, fill: 'rgb(239, 68, 68)' },
+                    { name: 'Expected Payout Value', value: results.epv, fill: results.epv > 0 ? 'rgb(16, 185, 129)' : 'rgb(239, 68, 68)' }
                   ]} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                     <XAxis dataKey="name" />
@@ -668,8 +668,8 @@ export function PropFirmSimulator() {
                     <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                       {
                         [
-                          { name: 'Challenge Fee', value: results.plotChallengeFee ?? 0, fill: '#ef4444' },
-                          { name: 'Expected Payout Value', value: results.epv, fill: results.epv > 0 ? '#10b981' : '#ef4444' }
+                          { name: 'Challenge Fee', value: results.plotChallengeFee ?? 0, fill: 'rgb(239, 68, 68)' },
+                          { name: 'Expected Payout Value', value: results.epv, fill: results.epv > 0 ? 'rgb(16, 185, 129)' : 'rgb(239, 68, 68)' }
                         ].map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))

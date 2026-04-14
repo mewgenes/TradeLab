@@ -501,37 +501,37 @@ export default function App() {
                           <AreaChart data={stats.equityCurve}>
                             <defs>
                               <linearGradient id="colorPnL" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="rgb(16, 185, 129)" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="rgb(16, 185, 129)" stopOpacity={0}/>
                               </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
-                            <XAxis 
-                              dataKey="date" 
-                              stroke="hsl(var(--muted-foreground))" 
-                              fontSize={12} 
-                              tickLine={false} 
-                              axisLine={false} 
+                            <XAxis
+                              dataKey="date"
+                              stroke="hsl(var(--muted-foreground))"
+                              fontSize={12}
+                              tickLine={false}
+                              axisLine={false}
                               tickFormatter={(value) => format(new Date(value), 'MMM dd')}
                             />
-                            <YAxis 
-                              stroke="hsl(var(--muted-foreground))" 
-                              fontSize={12} 
-                              tickLine={false} 
-                              axisLine={false} 
-                              tickFormatter={(value) => `$${value.toFixed(0)}`} 
+                            <YAxis
+                              stroke="hsl(var(--muted-foreground))"
+                              fontSize={12}
+                              tickLine={false}
+                              axisLine={false}
+                              tickFormatter={(value) => `$${value.toFixed(0)}`}
                             />
-                            <RechartsTooltip 
+                            <RechartsTooltip
                               formatter={(value: number) => [`$${value.toFixed(2)}`, 'P&L']}
                               contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
                               itemStyle={{ color: 'hsl(var(--foreground))' }}
                             />
-                            <Area 
-                              type="monotone" 
-                              dataKey="balance" 
-                              stroke="#10b981" 
-                              fillOpacity={1} 
-                              fill="url(#colorPnL)" 
+                            <Area
+                              type="monotone"
+                              dataKey="balance"
+                              stroke="rgb(16, 185, 129)"
+                              fillOpacity={1}
+                              fill="url(#colorPnL)"
                             />
                           </AreaChart>
                         </ResponsiveContainer>
@@ -572,7 +572,7 @@ export default function App() {
                             />
                             <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                               {stats.dailyPnL.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.value >= 0 ? '#10b981' : '#ef4444'} />
+                                <Cell key={`cell-${index}`} fill={entry.value >= 0 ? 'rgb(16, 185, 129)' : 'rgb(239, 68, 68)'} />
                               ))}
                             </Bar>
                           </BarChart>

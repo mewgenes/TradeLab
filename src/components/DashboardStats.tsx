@@ -26,18 +26,18 @@ const SemiCircleGauge = ({ value, wins, losses }: { value: number, wins: number,
   // Ensure value is between 0 and 100
   const safeValue = Math.min(Math.max(value, 0), 100);
   const strokeDashoffset = circumference - (safeValue / 100) * circumference;
-  
+
   return (
     <div className="flex flex-col items-center justify-end w-full relative">
         <svg viewBox="0 0 100 50" className="w-full overflow-visible">
             {/* Background (Loss/Red) */}
-            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#ef4444" strokeWidth="8" strokeLinecap="round" opacity="0.8" />
+            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgb(239, 68, 68)" strokeWidth="8" strokeLinecap="round" opacity="0.8" />
             {/* Foreground (Win/Green) */}
-            <path 
-                d="M 10 50 A 40 40 0 0 1 90 50" 
-                fill="none" 
-                stroke="#10b981" 
-                strokeWidth="8" 
+            <path
+                d="M 10 50 A 40 40 0 0 1 90 50"
+                fill="none"
+                stroke="rgb(16, 185, 129)"
+                strokeWidth="8"
                 strokeLinecap="round"
                 strokeDasharray={circumference}
                 strokeDashoffset={strokeDashoffset}
@@ -65,11 +65,11 @@ const CircleGauge = ({ value }: { value: number }) => {
         <div className="relative h-full w-full flex items-center justify-center">
             <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                 <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
-                <circle 
-                    cx="50" cy="50" r="40" 
-                    fill="none" 
-                    stroke={value >= 1 ? "#10b981" : "#ef4444"} 
-                    strokeWidth="8" 
+                <circle
+                    cx="50" cy="50" r="40"
+                    fill="none"
+                    stroke={value >= 1 ? "rgb(16, 185, 129)" : "rgb(239, 68, 68)"}
+                    strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={strokeDashoffset}

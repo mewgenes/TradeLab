@@ -3,6 +3,10 @@ import bcrypt from 'bcryptjs';
 import { supabase } from './db.js';
 import { signToken, verifyToken } from './auth.js';
 
+const FUTURES_POINT_VALUES: Record<string, number> = {
+  ES_MINI: 50, ES_MICRO: 5, NQ_MINI: 20, NQ_MICRO: 2,
+};
+
 const app = express();
 app.use(express.json());
 
@@ -76,7 +80,7 @@ app.post('/api/trades', verifyToken, async (req, res) => {
     const {
       symbol, side, entry_date, entry_time, entry_price, exit_price,
       stop_loss, take_profit, quantity, quantity_type, commission,
-      setup, tags, notes,
+      setup, tags, notes, futures_contract,
     } = req.body;
 
     const { data, error } = await supabase
@@ -91,11 +95,12 @@ app.post('/api/trades', verifyToken, async (req, res) => {
         stop_loss: stop_loss || 0,
         take_profit: take_profit || 0,
         quantity,
-        quantity_type: quantity_type || 'SHARES',
+        quantity_type: quantity_type || 'LOTS',
         commission: commission || 0,
         setup,
         tags: JSON.stringify(tags || []),
         notes,
+        futures_contract: futures_contract || null,
         user_id: (req as any).userId,
       })
       .select()
@@ -117,7 +122,7 @@ app.put('/api/trades/:id', verifyToken, async (req, res) => {
     const {
       symbol, side, entry_date, entry_time, entry_price, exit_price,
       stop_loss, take_profit, quantity, quantity_type, commission,
-      setup, tags, notes,
+      setup, tags, notes, futures_contract,
     } = req.body;
 
     const { data, error } = await supabase
@@ -132,11 +137,12 @@ app.put('/api/trades/:id', verifyToken, async (req, res) => {
         stop_loss: stop_loss || 0,
         take_profit: take_profit || 0,
         quantity,
-        quantity_type: quantity_type || 'SHARES',
+        quantity_type: quantity_type || 'LOTS',
         commission: commission || 0,
         setup,
         tags: JSON.stringify(tags || []),
         notes,
+        futures_contract: futures_contract || null,
       })
       .eq('id', id)
       .eq('user_id', (req as any).userId)
@@ -207,9 +213,16 @@ app.get('/api/stats', verifyToken, async (req, res) => {
     const hourlyPnLMap: Record<string, number> = {};
 
     for (const trade of sortedTrades as any[]) {
-      const multiplier = trade.side === 'LONG' ? 1 : -1;
-      const quantityMultiplier = trade.quantity_type === 'LOTS' ? 100 : 1;
-      const grossPnL = (trade.exit_price - trade.entry_price) * trade.quantity * quantityMultiplier * multiplier;
+      const direction = trade.side === 'LONG' ? 1 : -1;
+      const priceDiff = trade.exit_price - trade.entry_price;
+      let grossPnL: number;
+      if (trade.futures_contract) {
+        const pointValue = FUTURES_POINT_VALUES[trade.futures_contract] ?? 0;
+        grossPnL = priceDiff * trade.quantity * pointValue * direction;
+      } else {
+        const quantityMultiplier = trade.quantity_type === 'LOTS' ? 100 : 1;
+        grossPnL = priceDiff * trade.quantity * quantityMultiplier * direction;
+      }
       const netPnL = grossPnL - (trade.commission || 0);
 
       totalPnL += netPnL;

@@ -17,6 +17,10 @@ import { DashboardStats } from '@/components/DashboardStats';
 import { PropFirmSimulator } from '@/components/PropFirmSimulator';
 import { LoginPage } from '@/components/LoginPage';
 
+const FUTURES_POINT_VALUES: Record<string, number> = {
+  ES_MINI: 50, ES_MICRO: 5, NQ_MINI: 20, NQ_MICRO: 2,
+};
+
 // Types
 interface Trade {
   id: number;
@@ -34,6 +38,7 @@ interface Trade {
   setup: string;
   tags: string[];
   notes: string;
+  futures_contract: string | null;
 }
 
 interface Stats {
@@ -125,11 +130,13 @@ export default function App() {
     stop_loss: '',
     take_profit: '',
     quantity: '',
-    quantity_type: 'SHARES',
+    quantity_type: 'LOTS',
     commission: '',
     setup: '',
     tags: '',
-    notes: ''
+    notes: '',
+    instrument_type: 'FOREX_CFD',
+    futures_contract: ''
   });
 
   const fetchData = async () => {
@@ -186,11 +193,13 @@ export default function App() {
         stop_loss: trade.stop_loss ? trade.stop_loss.toString() : '',
         take_profit: trade.take_profit ? trade.take_profit.toString() : '',
         quantity: trade.quantity.toString(),
-        quantity_type: trade.quantity_type || 'SHARES',
+        quantity_type: trade.quantity_type || 'LOTS',
         commission: trade.commission ? trade.commission.toString() : '',
         setup: trade.setup || '',
         tags: trade.tags ? trade.tags.join(', ') : '',
-        notes: trade.notes || ''
+        notes: trade.notes || '',
+        instrument_type: trade.futures_contract ? 'FUTURES' : 'FOREX_CFD',
+        futures_contract: trade.futures_contract || ''
       });
     } else {
       setEditingId(null);
@@ -204,11 +213,13 @@ export default function App() {
         stop_loss: '',
         take_profit: '',
         quantity: '',
-        quantity_type: 'SHARES',
+        quantity_type: 'LOTS',
         commission: '',
         setup: '',
         tags: '',
-        notes: ''
+        notes: '',
+        instrument_type: 'FOREX_CFD',
+        futures_contract: ''
       });
     }
     setIsEntryModalOpen(true);
@@ -217,8 +228,9 @@ export default function App() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const { instrument_type, ...restFormData } = formData;
       const payload = {
-        ...formData,
+        ...restFormData,
         entry_date: format(formData.entry_date, 'yyyy-MM-dd'),
         entry_price: parseFloat(formData.entry_price),
         exit_price: parseFloat(formData.exit_price),
@@ -226,7 +238,8 @@ export default function App() {
         take_profit: parseFloat(formData.take_profit) || 0,
         quantity: parseInt(formData.quantity),
         commission: parseFloat(formData.commission) || 0,
-        tags: typeof formData.tags === 'string' ? formData.tags.split(',').map(t => t.trim()).filter(t => t) : formData.tags
+        tags: typeof formData.tags === 'string' ? formData.tags.split(',').map(t => t.trim()).filter(t => t) : formData.tags,
+        futures_contract: instrument_type === 'FUTURES' ? (formData.futures_contract || null) : null,
       };
 
       const url = editingId ? `/api/trades/${editingId}` : '/api/trades';
@@ -265,10 +278,14 @@ export default function App() {
 
   // Helper to calculate PnL for a trade
   const calculatePnL = (trade: Trade) => {
-    const multiplier = trade.side === 'LONG' ? 1 : -1;
+    const direction = trade.side === 'LONG' ? 1 : -1;
+    const priceDiff = trade.exit_price - trade.entry_price;
+    if (trade.futures_contract) {
+      const pointValue = FUTURES_POINT_VALUES[trade.futures_contract] ?? 0;
+      return priceDiff * trade.quantity * pointValue * direction - (trade.commission || 0);
+    }
     const quantityMultiplier = trade.quantity_type === 'LOTS' ? 100 : 1;
-    const gross = (trade.exit_price - trade.entry_price) * trade.quantity * quantityMultiplier * multiplier;
-    return gross - trade.commission;
+    return priceDiff * trade.quantity * quantityMultiplier * direction - (trade.commission || 0);
   };
 
   // Helper to calculate Planned RR Ratio
@@ -699,7 +716,16 @@ export default function App() {
                                 </td>
                                 <td className="p-4 align-middle">{trade.setup}</td>
                                 <td className="p-4 align-middle text-right">
-                                  {trade.quantity}
+                                  <div>{trade.quantity}</div>
+                                  {trade.futures_contract ? (
+                                    <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                                      {trade.futures_contract.replace('_', ' ')}
+                                    </div>
+                                  ) : (
+                                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                                      {trade.quantity_type === 'LOTS' ? 'LOTS' : 'SHS'}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="p-4 align-middle text-right">${trade.entry_price.toFixed(2)}</td>
                                 <td className="p-4 align-middle text-right">${trade.exit_price.toFixed(2)}</td>
@@ -776,109 +802,166 @@ export default function App() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="symbol">Symbol</Label>
-                    <Input id="symbol" name="symbol" value={formData.symbol} onChange={handleInputChange} required placeholder="e.g. SPY" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="side">Side</Label>
-                    <Select name="side" value={formData.side} onValueChange={(val) => handleSelectChange('side', val)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select side" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="LONG">Long</SelectItem>
-                        <SelectItem value="SHORT">Short</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                {(() => {
+                  const isFutures = formData.instrument_type === 'FUTURES';
+                  return (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Instrument Type</Label>
+                          <Select name="instrument_type" value={formData.instrument_type} onValueChange={(val) => {
+                            if (val === 'FUTURES') {
+                              setFormData(prev => ({ ...prev, instrument_type: 'FUTURES', futures_contract: 'ES_MINI' }));
+                            } else {
+                              setFormData(prev => ({ ...prev, instrument_type: 'FOREX_CFD', futures_contract: '' }));
+                            }
+                          }}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="FOREX_CFD">Forex CFD</SelectItem>
+                              <SelectItem value="FUTURES">Futures</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {isFutures ? (
+                          <div className="space-y-2">
+                            <Label>Contract</Label>
+                            <Select name="futures_contract" value={formData.futures_contract} onValueChange={(val) => handleSelectChange('futures_contract', val)}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ES_MINI">ES Mini ($50/pt)</SelectItem>
+                                <SelectItem value="ES_MICRO">ES Micro ($5/pt)</SelectItem>
+                                <SelectItem value="NQ_MINI">NQ Mini ($20/pt)</SelectItem>
+                                <SelectItem value="NQ_MICRO">NQ Micro ($2/pt)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <Label>Quantity Type</Label>
+                            <Select name="quantity_type" value={formData.quantity_type} onValueChange={(val) => handleSelectChange('quantity_type', val)}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="LOTS">Lots (100x)</SelectItem>
+                                <SelectItem value="SHARES">Shares (1x)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2 flex flex-col">
-                    <Label htmlFor="entry_date" className="mb-2">Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !formData.entry_date && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {formData.entry_date ? format(formData.entry_date, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={formData.entry_date}
-                          onSelect={handleDateSelect}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="entry_time">Time</Label>
-                    <Input id="entry_time" name="entry_time" type="time" value={formData.entry_time} onChange={handleInputChange} required />
-                  </div>
-                </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="symbol">Symbol</Label>
+                          <Input id="symbol" name="symbol" value={formData.symbol} onChange={handleInputChange} required placeholder={isFutures ? 'e.g. ES' : 'e.g. EUR/USD'} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="side">Side</Label>
+                          <Select name="side" value={formData.side} onValueChange={(val) => handleSelectChange('side', val)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select side" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="LONG">Long</SelectItem>
+                              <SelectItem value="SHORT">Short</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity (Shares)</Label>
-                    <Input id="quantity" name="quantity" type="number" value={formData.quantity} onChange={handleInputChange} required placeholder="100" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="commission">Commission</Label>
-                    <Input id="commission" name="commission" type="number" step="0.01" value={formData.commission} onChange={handleInputChange} placeholder="0.00" />
-                  </div>
-                </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2 flex flex-col">
+                          <Label htmlFor="entry_date" className="mb-2">Date</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant={"outline"}
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !formData.entry_date && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {formData.entry_date ? format(formData.entry_date, "PPP") : <span>Pick a date</span>}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={formData.entry_date}
+                                onSelect={handleDateSelect}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="entry_time">Time</Label>
+                          <Input id="entry_time" name="entry_time" type="time" value={formData.entry_time} onChange={handleInputChange} required />
+                        </div>
+                      </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="entry_price">Entry Price</Label>
-                    <Input id="entry_price" name="entry_price" type="number" step="0.01" value={formData.entry_price} onChange={handleInputChange} required placeholder="0.00" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="exit_price">Exit Price</Label>
-                    <Input id="exit_price" name="exit_price" type="number" step="0.01" value={formData.exit_price} onChange={handleInputChange} required placeholder="0.00" />
-                  </div>
-                </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="quantity">{isFutures ? 'Contracts' : 'Quantity'}</Label>
+                          <Input id="quantity" name="quantity" type="number" value={formData.quantity} onChange={handleInputChange} required placeholder={isFutures ? '1' : '100'} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="commission">Commission</Label>
+                          <Input id="commission" name="commission" type="number" step="0.01" value={formData.commission} onChange={handleInputChange} placeholder="0.00" />
+                        </div>
+                      </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="stop_loss">Stop Loss (Optional)</Label>
-                    <Input id="stop_loss" name="stop_loss" type="number" step="0.01" value={formData.stop_loss} onChange={handleInputChange} placeholder="0.00" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="take_profit">Take Profit (Optional)</Label>
-                    <Input id="take_profit" name="take_profit" type="number" step="0.01" value={formData.take_profit} onChange={handleInputChange} placeholder="0.00" />
-                  </div>
-                </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="entry_price">Entry Price</Label>
+                          <Input id="entry_price" name="entry_price" type="number" step="0.0001" value={formData.entry_price} onChange={handleInputChange} required placeholder="0.00" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="exit_price">Exit Price</Label>
+                          <Input id="exit_price" name="exit_price" type="number" step="0.0001" value={formData.exit_price} onChange={handleInputChange} required placeholder="0.00" />
+                        </div>
+                      </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="setup">Setup</Label>
-                  <Input id="setup" name="setup" value={formData.setup} onChange={handleInputChange} placeholder="e.g. VWAP Reversal" />
-                </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="stop_loss">Stop Loss (Optional)</Label>
+                          <Input id="stop_loss" name="stop_loss" type="number" step="0.0001" value={formData.stop_loss} onChange={handleInputChange} placeholder="0.00" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="take_profit">Take Profit (Optional)</Label>
+                          <Input id="take_profit" name="take_profit" type="number" step="0.0001" value={formData.take_profit} onChange={handleInputChange} placeholder="0.00" />
+                        </div>
+                      </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="tags">Tags (comma separated)</Label>
-                  <Input id="tags" name="tags" value={formData.tags} onChange={handleInputChange} placeholder="FOMO, Late Entry, A+ Setup" />
-                </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="setup">Setup</Label>
+                        <Input id="setup" name="setup" value={formData.setup} onChange={handleInputChange} placeholder="e.g. VWAP Reversal" />
+                      </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea id="notes" name="notes" value={formData.notes} onChange={handleInputChange} placeholder="Trade rationale..." />
-                </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="tags">Tags (comma separated)</Label>
+                        <Input id="tags" name="tags" value={formData.tags} onChange={handleInputChange} placeholder="FOMO, Late Entry, A+ Setup" />
+                      </div>
 
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button type="button" variant="ghost" onClick={() => setIsEntryModalOpen(false)}>Cancel</Button>
-                  <Button type="submit">{editingId ? 'Update Trade' : 'Log Trade'}</Button>
-                </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="notes">Notes</Label>
+                        <Textarea id="notes" name="notes" value={formData.notes} onChange={handleInputChange} placeholder="Trade rationale..." />
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button type="button" variant="ghost" onClick={() => setIsEntryModalOpen(false)}>Cancel</Button>
+                        <Button type="submit">{editingId ? 'Update Trade' : 'Log Trade'}</Button>
+                      </div>
+                    </>
+                  );
+                })()}
               </form>
             </CardContent>
           </Card>
